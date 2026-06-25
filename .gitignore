@@ -1,3 +1,4 @@
 primelists/*
 *.pyc
 *.csv
+graphs/*
