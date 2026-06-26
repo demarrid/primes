@@ -1,18 +1,24 @@
 from fractions import Fraction
 import math
 
-dim_count = 2000
+target_max_int = 1_000_000
 
-primes = open("primes.txt","r").read().replace("\n", ",").split(",")
-PRIMES = [int(p) for p in primes[:dim_count]]
+stored_primes = [int(k) for k in open("primes.txt","r").read().replace("\n", ",").split(",")]
+PRIMES = [int(p) for p in stored_primes if p <= target_max_int]
+
+monzo_cache = {}
 
 color_sequence = ["#83ECF2", "#5FDEB6", "#E3B756", "#3B4AD9", "#22BF4B", "#8117BF", "#BF1773", "#85780B", "#12662F", "#6E0C2F", "#6E0C2F"]
 
 class Monzo:
-    __slots__ = ("e",)
+    __slots__ = ("e", "self_int", "self_norm", "self_square_norm",
+             "self_fraction", "self_len", "self_color")
 
     def __init__(self, exponents):
         self.e = list(exponents)
+        self.self_int = self.self_norm = self.self_square_norm = None
+        self.self_fraction = self.self_len = self.self_color = None
+        monzo_cache[self.to_int()] = self
 
     def __add__(self, other):
         return Monzo(a + b for a, b in zip(self.e, other.e))
@@ -37,10 +43,16 @@ class Monzo:
         return sum(a * b for a, b in zip(self.e, val))
 
     def square_norm(self):
-        return sum(a ** 2 for a in self.e)
+        if self.self_square_norm is not None:
+            return self.self_square_norm
+        self.self_square_norm = sum(a ** 2 for a in self.e)
+        return self.self_square_norm
 
     def norm(self):
-        return math.sqrt(self.square_norm())
+        if self.self_norm is not None:
+            return self.self_norm
+        self.self_norm = math.sqrt(self.square_norm())
+        return self.self_norm
 
     def __eq__(self, other):
         return isinstance(other, Monzo) and self.e == other.e
@@ -49,31 +61,55 @@ class Monzo:
         return f"Monzo({self.e})"
 
     def to_fraction(self):
+        if self.self_fraction is not None:
+            return self.self_fraction
         f = Fraction(1)
         for exp, p in zip(self.e, PRIMES):
             f *= Fraction(p) ** exp
-        return f
+        self.self_fraction = f
+        return self.self_fraction
 
     def to_int(self):
+        if self.self_int is not None:
+            return self.self_int
         if self.e == [-1] * len(PRIMES):
-            return 0
-        return math.prod(p ** e for p, e in zip(PRIMES, self.e))
+            self.self_int = 0
+            return self.self_int
+
+        self.self_int = math.prod(p ** e for p, e in zip(PRIMES, self.e))
+        return self.self_int
 
     def get_index(self, i):
-        return self.e[i]
+        return self.e[i] if i < len(self.e) else 0
 
     def as_color(self):
+        if self.self_color is not None:
+            return self.self_color
         if self.e == [-1] * len(PRIMES):
-            return "#000000"
-        return color_sequence[(self.to_int() - 1) % len(color_sequence)]
+            self.self_color = "#000000"
+            return self.self_color
+
+        self.self_color = color_sequence[(self.to_int() - 1) % len(color_sequence)]
+        return self.self_color
 
     def __len__(self):
-        return len(self.e)
+        if self.self_len is not None:
+            return self.self_len
+
+        for i in range(len(self.e))[::-1]:
+            if self.e[i] > 0:
+                self.self_len = i + 1
+                return self.self_len
+
+        self.self_len = 0
+        return self.self_len
 
     @classmethod
     def from_int(cls, n):
         if n < 1:
             return cls([-1] * len(PRIMES))
+        if n in monzo_cache:
+            return monzo_cache[n]
         exps = [0] * len(PRIMES)
         for i, p in enumerate(PRIMES):
             while n % p == 0:
@@ -84,12 +120,10 @@ class Monzo:
         return cls(exps)
 
     @classmethod
+    def get(cls, n: int):
+        return cls.from_int(n)
+
+    @classmethod
     def get_nth_prime(cls, n):
         return PRIMES[n-1]
 
-integer_to_monzo = {}
-
-def get_monzo(integer):
-    if integer not in integer_to_monzo:
-        integer_to_monzo[integer] = Monzo.from_int(integer)
-    return integer_to_monzo[integer]

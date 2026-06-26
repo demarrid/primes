@@ -1,53 +1,85 @@
-from monzo import Monzo, get_monzo
-from utils import render_grid
+from monzo import Monzo, target_max_int
 import pandas as pd
+from monzo import PRIMES
+import visualization as viz
+from utils import factor, make_spf, build_grid_records, load_or_build
+import numpy as np
+from vispy import app
 
-monzos = [get_monzo(i) for i in range(1, 10000)]
+N = target_max_int
 
-monzo_grid = [[get_monzo(monzos[i].get_index(j)).as_color() for j in range(len(monzos[i]))] for i in range(len(monzos))]
-columns = [f"color{i+1}" for i in range(16)]
-render_grid(monzo_grid, path="graphs/monzo_grid.png")
+# monzos = [Monzo.get(i) for i in range(1, N + 1)]
 
-grid_df = pd.DataFrame(columns=["int", *columns])
+# monzo_grid = [[Monzo.get(monzos[i].get_index(j)).as_color() for j in range(len(monzos[i]))] for i in range(len(monzos))]
+# columns = [f"color{i+1}" for i in range(16)]
+# render_grid(monzo_grid, path=f"graphs/monzo_grid_{upper_bound}.png")
 
-for mz in monzos:
-    for i in range(len(mz)):
-        pow = mz.get_index(i)
-        if pow > 0:
-            grid_df = pd.concat([grid_df, pd.DataFrame([{"int": mz.to_int(), **{columns[pow - 1]: Monzo.get_nth_prime(i + 1)}}])])
-
-grid_df.to_csv("grid_df.csv", index=False)
-
-# Precompute all square norms only once
-square_norms = [mz.square_norm() for mz in monzos]
-square_norm_monzos = [get_monzo(sq) for sq in square_norms]
+# square_norms = [mz.square_norm() for mz in monzos]
+# square_norm_monzos = [Monzo.get(sq) for sq in square_norms]
 
 # square_norm_grid = [
 #     [square_norm_monzos[i].get_index(j) for j in range(len(monzos[i]))]
 #     for i in range(len(monzos))
 # ]
+
 # square_norm_grid = [
-#     [get_monzo(val).as_color() for val in row]
+#     [Monzo.get(val).as_color() for val in row]
 #     for row in square_norm_grid
 # ]
-# render_grid(square_norm_grid, path="graphs/square_norm_grid.png")
 
-square_norm_df = pd.DataFrame(columns=["int", *columns])
+# render_grid(square_norm_grid, path=f"graphs/square_norm_grid_{upper_bound}.png")
 
-for mz, nmz in zip(monzos, square_norm_monzos):
-    for i in range(len(nmz)):
-        pow = nmz.get_index(i)
-        if pow > 0:
-            square_norm_df = pd.concat([square_norm_df, pd.DataFrame([{"int": mz.to_int(), **{columns[pow - 1]: Monzo.get_nth_prime(i + 1)}}])])
+# square_norm_df = pd.DataFrame(columns=["int", *columns])
 
-square_norm_df.to_csv("square_norm_df.csv", index=False)
+# for mz, nmz in zip(monzos, square_norm_monzos):
+#     for i in range(len(nmz)):
+#         pow = nmz.get_index(i)
+#         if pow > 0:
+#             square_norm_df = pd.concat([square_norm_df, pd.DataFrame([{"int": mz.to_int(), **{columns[pow - 1]: Monzo.get_nth_prime(i + 1)}}])])
 
-normalized_df = pd.DataFrame(columns=["int", "normalized_val"])
+# square_norm_df.to_csv(f"square_norm_df_{upper_bound}.csv", index=False)
 
-for i, mz in enumerate(monzos):
-    normalized_df = pd.concat([normalized_df, pd.DataFrame([{"int": mz.to_int(), "normalized_val": (mz / max(mz.norm(), 1)).to_fraction()}])])
+# normalized_df = pd.DataFrame(columns=["int", "normalized_val"])
 
-normalized_df.to_csv("normalized_monzos.csv", index=False)
+# for i, mz in enumerate(monzos):
+#     normalized_df = pd.concat([normalized_df, pd.DataFrame([{"int": mz.to_int(), "normalized_val": (mz / max(mz.norm(), 1)).to_fraction()}])])
+
+# normalized_df.to_csv(f"normalized_monzos_{N}.csv", index=False)
+
+spf = make_spf(N)
+prime_index = {p: i for i, p in enumerate(PRIMES)}
+
+grid_df = load_or_build(
+    f"grid_df_{N}.csv",
+    lambda: build_grid_records(N, spf, prime_index),
+)
+
+sqnorm_df = load_or_build(
+    f"square_norm_df_{N}.csv",
+    lambda: build_grid_records(N, spf, prime_index,
+                               value_of=lambda n, exps: sum(e*e for e in exps.values())),
+)
+
+def build_normalized_records(N, spf):
+    rows = []
+    for n in range(2, N + 1):
+        exps = list(factor(n, spf))           
+        norm = np.sqrt(sum(e*e for _, e in exps)) or 1
+        val = 1.0
+        for p, e in exps:
+            val *= p ** (e / norm)
+        rows.append((n, val))
+    return pd.DataFrame(rows, columns=["int", "normalized_val"])
+
+normalized_df = load_or_build(f"normalized_monzos_{N}.csv",
+                        lambda: build_normalized_records(N, spf))
+canvases = [
+    viz.scatter_view(grid_df, "int", "prime_index", value_col="exponent"),
+    viz.scatter_view(sqnorm_df, "int", "prime_index", value_col="exponent"),
+    viz.scatter_view(normalized_df, "int", "normalized_val",
+                     value_col="normalized_val", continuous=True),
+]
+app.run()
 
 # odd primes are x^2 = y^2
 
@@ -73,3 +105,17 @@ normalized_df.to_csv("normalized_monzos.csv", index=False)
 # non-generous primes: p, the least positive primiive root is not a primitive root of p^2
 # safe-prime: p and (p-1)/2 are both prime
 # super-prime: p is the kth prime, k is prime
+
+# what is a successor? 
+# we have an element of the vector space v = (c_1, c_2, c_3, ...)
+# primes are the orthonormal basis vectors e_i
+# we have some int k = prod_{i=1}^\infty e_i^c_i
+# its norm squared is sum_{i=1}^\infty c_i^2
+# k's successor s must have (prod_{i=1}^\infty e_i^{a_i}) - (prod_{i=1}^\infty e^{c_i}) = 1
+# we know <v, s> = 0 hence c_i > 0 \implies a_i = 0 (s is in the orthogonal complement of the span of v's nonzero coordinates)
+# we must minimize (prod_{i=i}^\infty e_i^{a_i}) - (prod_{i=i}^\infty e^{c_i})
+# i.e., minimize \sum{i=i}^\infty a_i\log(e_i) - \sum{i=i}^\infty c_i\log(e_i)
+# i.e., minimize \sum{i=1}^\infty a_i * i - \sum{i=1}^\infty c_i * i
+# since we only take positive values, use dynamic programming ?
+
+# try: inductively increment coordinates from e_k down to e_1 while maintaining condition
