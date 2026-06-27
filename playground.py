@@ -74,14 +74,14 @@ def build_normalized_records(N, spf):
 normalized_df = load_or_build(f"normalized_monzos_{N}.csv",
                         lambda: build_normalized_records(N, spf))
 canvases = [
-    viz.scatter_view(grid_df, "int", "prime_index", value_col="exponent"),
-    viz.scatter_view(sqnorm_df, "int", "prime_index", value_col="exponent"),
+    viz.scatter_view(grid_df, "int", "prime_index", value_col="exponent", title="grid"),
+    viz.scatter_view(sqnorm_df, "int", "prime_index", value_col="exponent", title="square norm"),
     viz.scatter_view(normalized_df, "int", "normalized_val",
-                     value_col="normalized_val", continuous=True),
+                     value_col="normalized_val", continuous=True, title="normalized"),
 ]
 app.run()
 
-# odd primes are x^2 = y^2
+# odd primes are x^2 + y^2
 
 # goldbach: every even integer is the sum of two primes
 # twin prime: there are infinitely many pairs of primes that differ by 2
@@ -113,9 +113,61 @@ app.run()
 # its norm squared is sum_{i=1}^\infty c_i^2
 # k's successor s must have (prod_{i=1}^\infty e_i^{a_i}) - (prod_{i=1}^\infty e^{c_i}) = 1
 # we know <v, s> = 0 hence c_i > 0 \implies a_i = 0 (s is in the orthogonal complement of the span of v's nonzero coordinates)
-# we must minimize (prod_{i=i}^\infty e_i^{a_i}) - (prod_{i=i}^\infty e^{c_i})
-# i.e., minimize \sum{i=i}^\infty a_i\log(e_i) - \sum{i=i}^\infty c_i\log(e_i)
-# i.e., minimize \sum{i=1}^\infty a_i * i - \sum{i=1}^\infty c_i * i
+# we must minimize |(prod_{i=i}^\infty e_i^{a_i}) - (prod_{i=i}^\infty e^{c_i})|
+# i.e., minimize |\sum{i=i}^\infty a_i\log(e_i) - \sum{i=i}^\infty c_i\log(e_i)|
+# i.e., minimize |\sum{i=1}^\infty a_i * i - \sum{i=1}^\infty c_i * i|
 # since we only take positive values, use dynamic programming ?
 
 # try: inductively increment coordinates from e_k down to e_1 while maintaining condition
+# try: define inner product by multiplying by p or logp for each coordinate
+funny_integer = 17
+v = Monzo.get(funny_integer)
+valid_indices = [i for i in range(len(v)) if v.get_index(i) == 0 and PRIMES[i] < funny_integer]
+
+left_hand_sum = sum(v.get_index(i) * np.log(PRIMES[i]) for i in range(len(v)))
+# dirichlet: if a and b are coprime, then there are infinitely many primes of the form an + b
+print(left_hand_sum)
+print(valid_indices)
+# if our successor does not converge, this is a prime
+remaining_diff = left_hand_sum
+
+empty_array = [0] * len(v)
+
+if funny_integer % 2 == 1:
+    empty_array[0] = 1
+    remaining_diff -= np.log(2)
+    print("remaining_diff", remaining_diff)
+
+while (len(valid_indices) > 0):
+    last_list_index = len(valid_indices) - 1
+    coordinate_index = valid_indices[last_list_index]
+    p = PRIMES[coordinate_index]
+    prime_log = np.log(p)
+    k = np.floor(remaining_diff / prime_log)
+    remaining_diff -= k * prime_log
+    if p == 2 and 2 * remaining_diff > prime_log:
+        k += 1
+        remaining_diff -= prime_log
+    empty_array[coordinate_index] += k
+    valid_indices.pop(last_list_index)
+    print("p=", p)
+    print("k=", k)
+    print("prime_log=", prime_log)
+    print("remaining_diff", remaining_diff)
+    print("valid_indices", valid_indices)
+    print("empty_array", empty_array)
+
+successor = Monzo(empty_array)
+print(successor.to_int())
+# 15 = 01100000
+# 16 = 40000000
+# 17 = 00000010
+# 18 = 12000000
+# 19 = 00000001
+# 20 = 20100000
+
+# suppose our successor is not prime
+
+
+# if we are composite odd, all coordinates for primes for successor at least 1/2 of us are 0
+# if we are even, all coordinates for successor at least (1/3 of us + our highest coordinate) value are 0

@@ -5,7 +5,7 @@ from vispy.color import ColorArray, get_colormap
 import numpy as np
 
 def scatter_view(df, x, y, value_col=None, continuous=False,
-                 size=6, title="scatter", bgcolor="white"):
+                 size=8, title="scatter", bgcolor="white"):
     pos = np.column_stack([df[x].to_numpy(float), df[y].to_numpy(float)])
 
     if value_col is None:
@@ -41,9 +41,25 @@ def scatter_view(df, x, y, value_col=None, continuous=False,
     view.add(markers)
     view.camera.set_range()
 
+    connect = horizontal_segments(pos)
+    if len(connect):
+        lines = scene.visuals.Line(pos=pos, connect=connect,
+                                color=(0.05, 0.4, 0.1, 0.2), width=1, method="gl", antialias=True)
+        view.add(lines)
+
     xaxis.link_view(view)   
     yaxis.link_view(view)
     return canvas
+
+def horizontal_segments(pos):
+    x, y = pos[:, 0], pos[:, 1]
+    order = np.lexsort((y, x))         
+    xs = x[order]
+    keep = np.empty(len(order), dtype=bool)
+    keep[:-1] = xs[1:] != xs[:-1]       
+    keep[-1] = True                     
+    reps = order[keep]                  
+    return np.column_stack([reps[:-1], reps[1:]])
 
 def render_grid(values_2d, cell_size=20, gap=2, bg="#000000", path="grid.png"):
     cols = len(values_2d)

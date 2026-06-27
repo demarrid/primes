@@ -156,6 +156,23 @@ def modular_curve_to_elliptic_curve(n: int):
     # complex upper half plane mod congurence subgroup gamma of modular group SL(2, Z)
     print("hi")
 
+def get_dual_prime_group(prime_index: int):
+    p = PRIMES[prime_index]
+    return [lambda a: (a * i) % p for i in range(p)]
+
+def to_dirichlet_character(q: int, character: lambda a: int):
+    return lambda n: (character(n) if Monzo.get(n) * Monzo.get(q) == 0 else 0)
+
+def riemann_zeta(s: Complex):
+
+    r = 1
+
+    for i in range(len(PRIMES)):
+        p = PRIMES[i]
+        r *= 1 / (1 - p ** (-s))
+        
+    return r
+
 # beware of clanker code below
 
 def load_or_build(path, build_fn, keep=True):
