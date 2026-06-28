@@ -4,11 +4,11 @@ from vispy.color import ColorArray, get_colormap
 from vispy.visuals.axis import _get_ticks_talbot
 import numpy as np
 
-def scatter_view(df, x, y, value_col=None, continuous=False, size=10, title="scatter", bgcolor="white"):
+def scatter_view(df, x, y, value_col=None, continuous=False, size=9, title="scatter", bgcolor="white", line_segments=False):
     pos = np.column_stack([df[x].to_numpy(float), df[y].to_numpy(float)])
 
     class TrackpadCamera(scene.PanZoomCamera):
-        on_change = None  # callback set later
+        on_change = None  
 
         def viewbox_mouse_event(self, event):
             if event.type == "mouse_wheel":
@@ -117,13 +117,39 @@ def scatter_view(df, x, y, value_col=None, continuous=False, size=10, title="sca
     view.add(markers)
     view.camera.set_range()
 
-    connect = horizontal_segments(pos)
-    if len(connect):
-        lines = scene.visuals.Line(pos=pos, connect=connect,
-                                color=(0.05, 0.4, 0.2, 0.5), width=2, method="gl", antialias=True)
-        view.add(lines)
+    if line_segments:
+        connect = horizontal_segments(pos)
+        if len(connect):
+            lines = scene.visuals.Line(pos=pos, connect=connect,
+                                    color=(0.05, 0.4, 0.2, 0.2), width=2, method="gl", antialias=True)
+            view.add(lines)
 
+    hover_text = scene.visuals.Text(
+        "", color="red", anchor_x="left", anchor_y="bottom",
+        font_size=10, parent=canvas.scene,
+    )
 
+    px_cache = {"pts": None}
+
+    @canvas.events.mouse_move.connect
+    def on_mouse_move(event):
+        px_all = px_cache["pts"]
+        d = np.linalg.norm(px_all - np.array(event.pos), axis=1)
+        i = int(np.argmin(d))
+        if d[i] < max(size, 12):                           
+            hover_text.text = f"({pos[i, 0]:g}, {pos[i, 1]:g})"
+            hover_text.pos = event.pos + np.array([10, -10])
+        else:
+            hover_text.text = ""
+
+    def refresh_px():
+        inv = markers.get_transform("visual", "canvas")
+        px_cache["pts"] = inv.map(pos)[:, :2]
+
+    old_on_change = view.camera.on_change
+    view.camera.on_change = lambda: (old_on_change(), refresh_px())
+    canvas.events.resize.connect(lambda e: refresh_px())
+    canvas.events.draw.connect(lambda e: refresh_px())
 
     return canvas
 

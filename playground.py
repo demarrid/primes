@@ -74,7 +74,7 @@ def build_normalized_records(N, spf):
 normalized_df = load_or_build(f"normalized_monzos_{N}.csv",
                         lambda: build_normalized_records(N, spf))
 canvases = [
-    viz.scatter_view(grid_df, "int", "prime_index", value_col="exponent", title="grid"),
+    viz.scatter_view(grid_df, "int", "prime_index", value_col="exponent", title="grid", line_segments=True),
     viz.scatter_view(sqnorm_df, "int", "prime_index", value_col="exponent", title="square norm"),
     viz.scatter_view(normalized_df, "int", "normalized_val",
                      value_col="normalized_val", continuous=True, title="normalized"),
@@ -148,7 +148,7 @@ while (len(valid_indices) > 0):
     if p == 2 and 2 * remaining_diff > prime_log:
         k += 1
         remaining_diff -= prime_log
-    empty_array[coordinate_index] += k
+    empty_array[coordinate_index] += int(k)
     valid_indices.pop(last_list_index)
     print("p=", p)
     print("k=", k)
