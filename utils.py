@@ -164,7 +164,6 @@ def to_dirichlet_character(q: int, character: lambda a: int):
     return lambda n: (character(n) if Monzo.get(n) * Monzo.get(q) == 0 else 0)
 
 def riemann_zeta(s: Complex):
-
     r = 1
 
     for i in range(len(PRIMES)):
@@ -202,7 +201,7 @@ def factor(m, spf):
 def build_grid_records(N, spf, prime_index, value_of=lambda n, exps: n):
     """value_of maps (n, its exponent dict) -> the integer to factor for the grid."""
     records = []
-    for n in range(2, N + 1):
+    for n in range(2, int(N) + 1):
         exps = dict(factor(n, spf))
         target = value_of(n, exps)
         if target < 2:

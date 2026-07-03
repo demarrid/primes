@@ -58,7 +58,7 @@ class Monzo:
         return isinstance(other, Monzo) and self.e == other.e
 
     def __repr__(self):
-        return f"Monzo({self.e})"
+        return f"Monzo({self.e[:self.__len__()]})"
 
     def to_fraction(self):
         if self.self_fraction is not None:

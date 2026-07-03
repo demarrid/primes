@@ -74,10 +74,9 @@ def build_normalized_records(N, spf):
 normalized_df = load_or_build(f"normalized_monzos_{N}.csv",
                         lambda: build_normalized_records(N, spf))
 canvases = [
-    viz.scatter_view(grid_df, "int", "prime_index", value_col="exponent", title="grid", line_segments=True),
+    # viz.scatter_view(grid_df, "int", "prime_index", value_col="exponent", title="grid", line_segments=True),
     viz.scatter_view(sqnorm_df, "int", "prime_index", value_col="exponent", title="square norm"),
-    viz.scatter_view(normalized_df, "int", "normalized_val",
-                     value_col="normalized_val", continuous=True, title="normalized"),
+    # viz.scatter_view(normalized_df, "int", "normalized_val", value_col="normalized_val", continuous=True, title="normalized"),
 ]
 app.run()
 
@@ -126,39 +125,50 @@ valid_indices = [i for i in range(len(v)) if v.get_index(i) == 0 and PRIMES[i] <
 
 left_hand_sum = sum(v.get_index(i) * np.log(PRIMES[i]) for i in range(len(v)))
 # dirichlet: if a and b are coprime, then there are infinitely many primes of the form an + b
-print(left_hand_sum)
-print(valid_indices)
-# if our successor does not converge, this is a prime
 remaining_diff = left_hand_sum
+
+print("Value of LHS:", left_hand_sum)
 
 empty_array = [0] * len(v)
 
 if funny_integer % 2 == 1:
+    print("Successor should be even")
     empty_array[0] = 1
     remaining_diff -= np.log(2)
-    print("remaining_diff", remaining_diff)
+    print("post-even adjustment remaining_diff: ", remaining_diff)
 
 while (len(valid_indices) > 0):
     last_list_index = len(valid_indices) - 1
     coordinate_index = valid_indices[last_list_index]
     p = PRIMES[coordinate_index]
     prime_log = np.log(p)
-    k = np.floor(remaining_diff / prime_log)
-    remaining_diff -= k * prime_log
-    if p == 2 and 2 * remaining_diff > prime_log:
-        k += 1
-        remaining_diff -= prime_log
-    empty_array[coordinate_index] += int(k)
+    k = 1
+    print("Coordinate Index: ", coordinate_index)
+    print("Prime: ", p)
+    print("Prime log: ", prime_log)
+    print("Value of k: ", k)
+    theoretical_diff = remaining_diff - k * prime_log
+    if (theoretical_diff < 0):
+        if p == 2 and 2 * remaining_diff > prime_log:
+            print("Last prime has remaining diff, increasing")
+            k += 1
+            remaining_diff -= prime_log
+            empty_array[coordinate_index] = int(k)
+
+        else:
+            print("Theoretical difference is negative, breaking")
+    else:
+        remaining_diff = theoretical_diff
+        empty_array[coordinate_index] += int(k)
+    
     valid_indices.pop(last_list_index)
-    print("p=", p)
-    print("k=", k)
-    print("prime_log=", prime_log)
-    print("remaining_diff", remaining_diff)
-    print("valid_indices", valid_indices)
-    print("empty_array", empty_array)
+
+    print("Remaining difference: ", remaining_diff)
+    print("Valid indices: ", valid_indices)
+    print("Successor monzo: ", empty_array)
 
 successor = Monzo(empty_array)
-print(successor.to_int())
+print("Successor: ", successor.to_int())
 # 15 = 01100000
 # 16 = 40000000
 # 17 = 00000010

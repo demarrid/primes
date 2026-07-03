@@ -1,10 +1,23 @@
-from monzo import color_sequence
+from monzo import color_sequence, Monzo, target_max_int
 from vispy import scene
 from vispy.color import ColorArray, get_colormap
 from vispy.visuals.axis import _get_ticks_talbot
 import numpy as np
 
+from utils import factor, make_spf
+
 def scatter_view(df, x, y, value_col=None, continuous=False, size=9, title="scatter", bgcolor="white", line_segments=False):
+    factor_filter = True
+    if factor_filter:
+        spf = make_spf(target_max_int)
+        def has_2_or_3_to_first_power(n):
+            exps = dict(factor(n, spf))
+            if (n % 10000 == 0):
+                print(f"Processed {n} of {target_max_int} integers")
+            return (exps.get(2, 0) == 1) or (exps.get(3, 0) == 1)
+        keep_ints = {i for i in df["int"].unique() if has_2_or_3_to_first_power(i)}
+        df = df[df["int"].isin(keep_ints)].reset_index(drop=True)
+   
     pos = np.column_stack([df[x].to_numpy(float), df[y].to_numpy(float)])
 
     class TrackpadCamera(scene.PanZoomCamera):
@@ -73,6 +86,8 @@ def scatter_view(df, x, y, value_col=None, continuous=False, size=9, title="scat
         return _get_ticks_talbot(lo, hi, px / dpi, density=7)   
 
     def update_grid():
+        if True:
+            return
         rect = view.camera.rect
         xs = _ticks(rect.left, rect.right, view.rect.width, canvas.dpi)
         ys = _ticks(rect.bottom, rect.top, view.rect.height, canvas.dpi)
@@ -89,6 +104,7 @@ def scatter_view(df, x, y, value_col=None, continuous=False, size=9, title="scat
     view.camera.on_change = update_grid
     canvas.events.resize.connect(lambda e: update_grid())
     grid_lines = scene.visuals.Line(color=(0.0, 0.0, 0.0, 0.03), width=2, method="gl", antialias=True, parent=view.scene)
+    grid_lines.order = -1
     update_grid()
 
     xaxis.link_view(view)   
@@ -122,7 +138,31 @@ def scatter_view(df, x, y, value_col=None, continuous=False, size=9, title="scat
         if len(connect):
             lines = scene.visuals.Line(pos=pos, connect=connect,
                                     color=(0.05, 0.4, 0.2, 0.2), width=2, method="gl", antialias=True)
+            lines.order = 1
             view.add(lines)
+    elif title == "square norm":
+        up = True
+        relevant_pos = [p for p in pos if p[1] > 40]
+        for a in relevant_pos:
+            for b in [p for p in relevant_pos if p[0] > a[0] and p[1] == a[1]]:
+                for c in [p for p in relevant_pos if a[0] + b[0] == 2 * p[0] and (a[1] < p[1] if up else a[1] > p[1])]:
+                    # print(f"Triangle found: ({a[0]}, {a[1]}), ({c[0]}, {c[1]}), ({b[0]}, {b[1]})")
+                    # print(f"\tMonzo 1: {Monzo.get(a[0])}")
+                    # print(f"\tMonzo 2: {Monzo.get(c[0])}")
+                    # print(f"\tMonzo 3: {Monzo.get(b[0])}")
+                    triangle_lines = scene.visuals.Line(pos=[a, b, c, a],
+                                                        color=(0.5, 0.05, 0.2, 0.05), width=1, method="gl", antialias=True)
+                    triangle_lines.order = 1
+                    view.add(triangle_lines)
+                for c in [p for p in relevant_pos if p[1] == a[1] and p[0] > b[0] and b[0] - a[0] == p[0] - b[0]]:
+                    # print(f"Triple found: ({a[0]}, {a[1]}), ({b[0]}, {b[1]}), ({c[0]}, {c[1]})")
+                    # print(f"\tMonzo 1: {Monzo.get(a[0])}")
+                    # print(f"\tMonzo 2: {Monzo.get(b[0])}")
+                    # print(f"\tMonzo 3: {Monzo.get(c[0])}")
+                    lines = scene.visuals.Line(pos=[a, c],
+                                    color=(0.05, 0.05, 0.5, 0.2), width=2, method="gl", antialias=True)
+                    lines.order = 1
+                    view.add(lines)
 
     hover_text = scene.visuals.Text(
         "", color="red", anchor_x="left", anchor_y="bottom",
