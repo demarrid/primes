@@ -1,7 +1,7 @@
 from fractions import Fraction
 import math
 
-target_max_int = 1_000_000
+target_max_int = 1_000_0
 
 stored_primes = [int(k) for k in open("primes.txt","r").read().replace("\n", ",").split(",")]
 PRIMES = [int(p) for p in stored_primes if p <= target_max_int]
@@ -11,11 +11,12 @@ monzo_cache = {}
 color_sequence = ["#83ECF2", "#5FDEB6", "#E3B756", "#3B4AD9", "#22BF4B", "#8117BF", "#BF1773", "#85780B", "#12662F", "#6E0C2F", "#6E0C2F"]
 
 class Monzo:
-    __slots__ = ("e", "self_int", "self_norm", "self_square_norm",
+    __slots__ = ("e", "c", "self_int", "self_norm", "self_square_norm",
              "self_fraction", "self_len", "self_color")
 
     def __init__(self, exponents):
         self.e = list(exponents)
+        self.c = None
         self.self_int = self.self_norm = self.self_square_norm = None
         self.self_fraction = self.self_len = self.self_color = None
         monzo_cache[self.to_int()] = self
@@ -69,6 +70,22 @@ class Monzo:
         self.self_fraction = f
         return self.self_fraction
 
+    def get_modular_coordinates(self):
+        if self.c is not None:
+            return self.c
+        self.c = [self.to_int() % PRIMES[i]  for i in range(len(self))]
+        return self.c
+
+    def successor(self):
+        return self.succeed(1)
+
+    def succeed(self, k):
+        self.to_int()
+        arr = [(1 if mod_coord + k == PRIMES[i] else 0) for i, mod_coord in enumerate(self.get_modular_coordinates())]
+        if not any(arr):
+            arr = arr + [1]
+        return Monzo(arr)
+
     def to_int(self):
         if self.self_int is not None:
             return self.self_int
@@ -77,6 +94,7 @@ class Monzo:
             return self.self_int
 
         self.self_int = math.prod(p ** e for p, e in zip(PRIMES, self.e))
+        self.get_modular_coordinates()
         return self.self_int
 
     def get_index(self, i):
@@ -106,6 +124,7 @@ class Monzo:
 
     @classmethod
     def from_int(cls, n):
+        COPY = n
         if n < 1:
             return cls([-1] * len(PRIMES))
         if n in monzo_cache:
@@ -117,7 +136,9 @@ class Monzo:
                 n //= p
         if n != 1:
             raise ValueError(f"{n} has a prime factor outside PRIMES")
-        return cls(exps)
+        m = cls(exps)
+        m.self_int = COPY
+        return m
 
     @classmethod
     def get(cls, n: int):

@@ -210,3 +210,21 @@ def build_grid_records(N, spf, prime_index, value_of=lambda n, exps: n):
             records.append((n, prime_index[p], p, e))
     cols = ["int", "prime_index", "prime", "exponent"]
     return pd.DataFrame(records, columns=cols)
+
+def build_modular_coord_records(N, spf, prime_index):
+    records = []
+    for n in range(1, int(N) + 1):
+        max_i = -1
+        m = n
+        while m > 1:
+            p = int(spf[m])
+            max_i = max(max_i, prime_index[p])
+            while m % p == 0:
+                m //= p
+        if max_i < 0:          
+            continue
+        for i in range(max_i + 1):
+            coord = n % PRIMES[i]
+            if coord != 0:
+                records.append((n, i, coord))
+    return pd.DataFrame(records, columns=["int", "prime_index", "coord"])

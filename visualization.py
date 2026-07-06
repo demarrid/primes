@@ -7,7 +7,7 @@ import numpy as np
 from utils import factor, make_spf
 
 def scatter_view(df, x, y, value_col=None, continuous=False, size=9, title="scatter", bgcolor="white", line_segments=False):
-    factor_filter = True
+    factor_filter = False
     if factor_filter:
         spf = make_spf(target_max_int)
         def has_2_or_3_to_first_power(n):
@@ -72,13 +72,21 @@ def scatter_view(df, x, y, value_col=None, continuous=False, size=9, title="scat
 
     def horizontal_segments(pos):
         x, y = pos[:, 0], pos[:, 1]
-        order = np.lexsort((y, x))         
-        xs = x[order]
-        keep = np.empty(len(order), dtype=bool)
-        keep[:-1] = xs[1:] != xs[:-1]       
-        keep[-1] = True                     
-        reps = order[keep]                  
-        return np.column_stack([reps[:-1], reps[1:]])
+        from collections import defaultdict
+        max_y_idx = {}
+        for idx in range(len(x)):
+            xi, yi = x[idx], y[idx]
+            if xi not in max_y_idx or yi > y[max_y_idx[xi]]:
+                max_y_idx[xi] = idx
+
+        sorted_xs = sorted(max_y_idx.keys())
+        segments = []
+        for i in range(len(sorted_xs) - 1):
+            idx1 = max_y_idx[sorted_xs[i]]
+            idx2 = max_y_idx[sorted_xs[i+1]]
+            if np.abs(sorted_xs[i+1] - sorted_xs[i]) < 2:
+                segments.append([idx1, idx2])
+        return np.array(segments)
 
     def _ticks(lo, hi, px, dpi):
         if hi <= lo or px <= 0:
@@ -133,6 +141,17 @@ def scatter_view(df, x, y, value_col=None, continuous=False, size=9, title="scat
     view.add(markers)
     view.camera.set_range()
 
+
+    def print_find(what, a, b, c):
+        print(f"{what}: ({a[0]}, {a[1]}), ({b[0]}, {b[1]}), ({c[0]}, {c[1]})")
+        print(f"\tMonzo 1: {Monzo.get(a[0])}")
+        print(f"\tMonzo 2: {Monzo.get(b[0])}")
+        print(f"\tMonzo 3: {Monzo.get(c[0])}")
+
+    draw_triangles = False
+    draw_triples = False
+    draw_quintuples = False
+
     if line_segments:
         connect = horizontal_segments(pos)
         if len(connect):
@@ -142,27 +161,35 @@ def scatter_view(df, x, y, value_col=None, continuous=False, size=9, title="scat
             view.add(lines)
     elif title == "square norm":
         up = True
-        relevant_pos = [p for p in pos if p[1] > 40]
-        for a in relevant_pos:
-            for b in [p for p in relevant_pos if p[0] > a[0] and p[1] == a[1]]:
-                for c in [p for p in relevant_pos if a[0] + b[0] == 2 * p[0] and (a[1] < p[1] if up else a[1] > p[1])]:
-                    # print(f"Triangle found: ({a[0]}, {a[1]}), ({c[0]}, {c[1]}), ({b[0]}, {b[1]})")
-                    # print(f"\tMonzo 1: {Monzo.get(a[0])}")
-                    # print(f"\tMonzo 2: {Monzo.get(c[0])}")
-                    # print(f"\tMonzo 3: {Monzo.get(b[0])}")
-                    triangle_lines = scene.visuals.Line(pos=[a, b, c, a],
-                                                        color=(0.5, 0.05, 0.2, 0.05), width=1, method="gl", antialias=True)
-                    triangle_lines.order = 1
-                    view.add(triangle_lines)
-                for c in [p for p in relevant_pos if p[1] == a[1] and p[0] > b[0] and b[0] - a[0] == p[0] - b[0]]:
-                    # print(f"Triple found: ({a[0]}, {a[1]}), ({b[0]}, {b[1]}), ({c[0]}, {c[1]})")
-                    # print(f"\tMonzo 1: {Monzo.get(a[0])}")
-                    # print(f"\tMonzo 2: {Monzo.get(b[0])}")
-                    # print(f"\tMonzo 3: {Monzo.get(c[0])}")
-                    lines = scene.visuals.Line(pos=[a, c],
-                                    color=(0.05, 0.05, 0.5, 0.2), width=2, method="gl", antialias=True)
-                    lines.order = 1
-                    view.add(lines)
+        relevant_pos = [p for p in pos if p[1] > 20]
+        for a in pos:
+            if draw_quintuples:
+                if a[0] % 5 == 0:
+                    k = 0
+                    f = a[0] // 5
+                    while pos[k][0] <= f and k < len(pos):
+                        if pos[k][0] == f:
+                            quint_line = scene.visuals.Line(pos=[a, pos[k]],
+                                                            color=(0.05, 0.05, 0.5, 0.2), width=2, method="gl", antialias=True)
+                            quint_line.order = 1
+                            view.add(quint_line)
+                        k += 1
+            if draw_triples or draw_triangles:
+                for b in [p for p in relevant_pos if p[0] > a[0] and p[1] == a[1]]:
+                    if draw_triangles:
+                        for c in [p for p in relevant_pos if a[0] + b[0] == 2 * p[0] and (a[1] < p[1] if up else a[1] > p[1])]:
+                            # print_find("Triangle found", a, b, c)
+                            triangle_lines = scene.visuals.Line(pos=[a, b, c, a],
+                                                                color=(0.5, 0.05, 0.2, 0.05), width=1, method="gl", antialias=True)
+                            triangle_lines.order = 1
+                            view.add(triangle_lines)
+                    if draw_triples:
+                        for c in [p for p in relevant_pos if p[1] == a[1] and p[0] > b[0] and b[0] - a[0] == p[0] - b[0]]:
+                            print_find("Triple found", a, b, c)
+                            lines = scene.visuals.Line(pos=[a, c],
+                                            color=(0.05, 0.05, 0.5, 0.2), width=2, method="gl", antialias=True)
+                            lines.order = 1
+                            view.add(lines)
 
     hover_text = scene.visuals.Text(
         "", color="red", anchor_x="left", anchor_y="bottom",
