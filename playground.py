@@ -47,7 +47,7 @@ canvases = [
     # viz.scatter_view(grid_df, "int", "prime_index", value_col="exponent", title="grid", line_segments=False),
     # viz.scatter_view(sqnorm_df, "int", "prime_index", value_col="exponent", title="square norm"),
     # viz.scatter_view(normalized_df, "int", "normalized_val", value_col="normalized_val", continuous=True, title="normalized"),
-    viz.scatter_view(modular_coords_df, "int", "prime_index", value_col="coord", title="modular coordinates", continuous=True),
+    viz.scatter_view(modular_coords_df, "int", "prime_index", value_col="coord", title="modular coordinates",),
 ]
 app.run()
 

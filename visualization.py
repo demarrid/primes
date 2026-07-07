@@ -4,7 +4,7 @@ from vispy.color import ColorArray, get_colormap
 from vispy.visuals.axis import _get_ticks_talbot
 import numpy as np
 
-from utils import factor, make_spf
+from utils import factor, make_spf, sigmoid
 
 def scatter_view(df, x, y, value_col=None, continuous=False, size=9, title="scatter", bgcolor="white", line_segments=False):
     factor_filter = False
@@ -47,6 +47,10 @@ def scatter_view(df, x, y, value_col=None, continuous=False, size=9, title="scat
         vals = df[value_col].to_numpy(float)
         norm = (vals - vals.min()) / (np.ptp(vals) or 1)
         face_color = get_colormap("viridis").map(norm)
+    elif title == "modular coordinates":
+        vals = df[value_col].to_numpy(float)
+        norm = 1- sigmoid((vals - vals.min()) / (np.ptp(vals) or 1) -0.5)
+        face_color = get_colormap("greens").map(norm)
     else:                                 
         idx = (df[value_col].to_numpy().astype(int) - 1) % len(color_sequence)
         face_color = ColorArray(color_sequence).rgba[idx]
@@ -135,7 +139,7 @@ def scatter_view(df, x, y, value_col=None, continuous=False, size=9, title="scat
 
     markers = scene.visuals.Markers()
     markers.set_data(pos, face_color=face_color, size=size,
-                     edge_width=0, edge_color=None)
+                     edge_width=0, edge_color=None, symbol='square')
     markers.set_gl_state(depth_test=False, blend=True,
                          blend_func=("src_alpha", "one_minus_src_alpha"))
     view.add(markers)

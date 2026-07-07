@@ -1,7 +1,7 @@
 from fractions import Fraction
 import math
 
-target_max_int = 1_000_0
+target_max_int = 1_00
 
 stored_primes = [int(k) for k in open("primes.txt","r").read().replace("\n", ",").split(",")]
 PRIMES = [int(p) for p in stored_primes if p <= target_max_int]
