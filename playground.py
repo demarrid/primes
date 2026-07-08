@@ -49,7 +49,7 @@ canvases = [
     # viz.scatter_view(normalized_df, "int", "normalized_val", value_col="normalized_val", continuous=True, title="normalized"),
     viz.scatter_view(modular_coords_df, "int", "prime_index", value_col="coord", title="modular coordinates",),
 ]
-app.run()
+# app.run()
 
 # odd primes are x^2 + y^2
 
@@ -79,6 +79,7 @@ app.run()
 funny_int = 17
 
 m = Monzo.get(funny_int)
+print("Successor")
 print(m.successor())
 
 # f % 2 = -1
@@ -103,8 +104,23 @@ funnier_int = 18
 
 # successor monzo contains none of these; hence it is prime
 
-# simple enough; but what about arbitrarily large integers for which we do not have local factorizations? and how can we "quickly" find ANY prime?
-
 # we represent integers using addition/multiplication, hence let $k=\sum{i=1}^n r_ia_i$ be the integer (for base 10 the a_i are the digits)
 
-# we enter a new prime space when the number we add equals no negative modular coordinate
+# the next prime is funnier_int + k where \{ m_i + k \mod p_i \} \ne 0 for all i
+
+funniest_int = 24
+
+# f % 2 = 0
+# f % 3 = 0
+# f % 5 = -1
+# f % 7 = -4
+# f % 11 = -8
+# f % 13 = -15
+# f % 17 = -10
+
+# k \ge the first prime for which k=1 spells a problem
+
+print("Next prime")
+for i in range(1, 5):
+    m = m.next_prime()
+    print(m.to_int())

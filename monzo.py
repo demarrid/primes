@@ -73,7 +73,7 @@ class Monzo:
     def get_modular_coordinates(self):
         if self.c is not None:
             return self.c
-        self.c = [self.to_int() % PRIMES[i]  for i in range(len(self))]
+        self.c = [(self.to_int() % PRIMES[i]) - PRIMES[i] for i in range(len(self))]
         return self.c
 
     def successor(self):
@@ -81,10 +81,43 @@ class Monzo:
 
     def succeed(self, k):
         self.to_int()
-        arr = [(1 if mod_coord + k == PRIMES[i] else 0) for i, mod_coord in enumerate(self.get_modular_coordinates())]
+        arr = [(1 if mod_coord + (k % PRIMES[i]) == 0 else 0) for i, mod_coord in enumerate(self.get_modular_coordinates())]
+
         if not any(arr):
-            arr = arr + [1]
+            new_array = [0] * (len(arr) + 1)
+            new_array[-1] = 1
+            arr = new_array
+
+        print("Computed successor array: ", arr)
         return Monzo(arr)
+
+    def next_prime(self):
+        modular_coordinates = self.get_modular_coordinates()
+        print("Value: ", self.to_int())
+        print("Modular coordinates: ", modular_coordinates)
+        k=1
+        gap = False
+        for i in range(len(modular_coordinates)):
+            if (modular_coordinates[i] + k ) % PRIMES[i] == 0:
+                if not gap:
+                    k = PRIMES[i]
+                else:
+                    for m in range(1, PRIMES[i]):
+                        shift = modular_coordinates 
+                        suitable = True
+                        for d in range(len(shift)):
+                            com = 
+                            if shift[d] + (m % PRIMES[i]) == 0:
+                                suitable = False
+                                break
+                        if suitable:
+                            k = m
+                            break
+            else:
+                gap = True
+
+        print("k: ", k)
+        return self.succeed(k)
 
     def to_int(self):
         if self.self_int is not None:
