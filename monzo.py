@@ -1,7 +1,7 @@
 from fractions import Fraction
 import math
 
-target_max_int = 1_00
+target_max_int = 1_000_0
 
 stored_primes = [int(k) for k in open("primes.txt","r").read().replace("\n", ",").split(",")]
 PRIMES = [int(p) for p in stored_primes if p <= target_max_int]
@@ -73,7 +73,10 @@ class Monzo:
     def get_modular_coordinates(self):
         if self.c is not None:
             return self.c
-        self.c = [(self.to_int() % PRIMES[i]) - PRIMES[i] for i in range(len(self))]
+        if len(self) == 0:
+            self.c = [-1]
+        else:
+            self.c = [(self.to_int() % PRIMES[i]) - PRIMES[i] for i in range(len(self))]
         return self.c
 
     def successor(self):
@@ -81,43 +84,38 @@ class Monzo:
 
     def succeed(self, k):
         self.to_int()
-        arr = [(1 if mod_coord + (k % PRIMES[i]) == 0 else 0) for i, mod_coord in enumerate(self.get_modular_coordinates())]
+        modular_coordinates = self.get_modular_coordinates()
+        arr = [(1 if mod_coord + (k % PRIMES[i]) == 0 else 0) for i, mod_coord in enumerate(modular_coordinates)]
 
+        val = self.to_int() + k
         if not any(arr):
             new_array = [0] * (len(arr) + 1)
             new_array[-1] = 1
             arr = new_array
+            if (len(self) == len(PRIMES)):
+                PRIMES.append(val)
 
-        print("Computed successor array: ", arr)
-        return Monzo(arr)
+        toReturn = Monzo(arr)
+        toReturn.self_int = val
+        toReturn.c = len(arr) * [0]
+
+        for i in range(len(toReturn.c)):
+            if i == len(modular_coordinates):
+                toReturn.c[i] = - PRIMES[i]
+            else:
+                toReturn.c[i] = ((modular_coordinates[i] + k) % PRIMES[i]) - PRIMES[i]
+        
+        return toReturn
 
     def next_prime(self):
         modular_coordinates = self.get_modular_coordinates()
-        print("Value: ", self.to_int())
-        print("Modular coordinates: ", modular_coordinates)
-        k=1
-        gap = False
-        for i in range(len(modular_coordinates)):
-            if (modular_coordinates[i] + k ) % PRIMES[i] == 0:
-                if not gap:
-                    k = PRIMES[i]
-                else:
-                    for m in range(1, PRIMES[i]):
-                        shift = modular_coordinates 
-                        suitable = True
-                        for d in range(len(shift)):
-                            com = 
-                            if shift[d] + (m % PRIMES[i]) == 0:
-                                suitable = False
-                                break
-                        if suitable:
-                            k = m
-                            break
-            else:
-                gap = True
+        increase = 1
+        for candidate in range(1-modular_coordinates[0], PRIMES[len(self)-1], 2):
+            if all(modular_coordinates[index] + (candidate % PRIMES[index]) != 0 for index in range(len(modular_coordinates))):
+                increase = candidate
+                break
 
-        print("k: ", k)
-        return self.succeed(k)
+        return self.succeed(increase)
 
     def to_int(self):
         if self.self_int is not None:
@@ -168,7 +166,8 @@ class Monzo:
                 exps[i] += 1
                 n //= p
         if n != 1:
-            raise ValueError(f"{n} has a prime factor outside PRIMES")
+            cls.get_nth_prime(len(PRIMES) + 1)
+            return cls.from_int(n)
         m = cls(exps)
         m.self_int = COPY
         return m
@@ -178,6 +177,44 @@ class Monzo:
         return cls.from_int(n)
 
     @classmethod
+    def from_modular_coordinates(cls, coordinates: list[int]):
+        for i in range(len(coordinates)):
+            if coordinates[i] == 0:
+                return cls([-1] * len(coordinates))
+            coordinates[i] = (coordinates[i] % PRIMES[i]) - PRIMES[i]
+
+        solved = False
+        coefficients = [0] * len(coordinates)
+        while not solved:
+            target = PRIMES[len(coordinates) - 1]
+            for i in range(len(coordinates)):
+                int_val = coefficients[i] * PRIMES[i] + (coordinates[i] % PRIMES[i])
+                while int_val < target or int_val % PRIMES[i] != (coordinates[i] % PRIMES[i]):
+                    coefficients[i] += 1
+                    int_val = coefficients[i] * PRIMES[i] + (coordinates[i] % PRIMES[i])
+            
+            solved = True
+            target = max([coefficients[i] * PRIMES[i] + (coordinates[i] % PRIMES[i]) for i in range(len(coordinates))])
+            for k in range(len(coordinates)):
+                if coefficients[k] * PRIMES[k] + (coordinates[k] % PRIMES[k]) != target:
+                    coefficients[k] += 1
+                    solved = False
+                    break
+
+            
+        return cls.from_int(target)
+
+
+    @classmethod
     def get_nth_prime(cls, n):
+        k = n - 1
+        while k > len(PRIMES) - 1:
+            m = cls.get(PRIMES[:-1])
+            m = m.next_prime()
+            k -= 1
         return PRIMES[n-1]
+
+    @classmethod
+    def get_prime_of_index(cls, index):
+        return cls.get_nth_prime(index + 1)
 

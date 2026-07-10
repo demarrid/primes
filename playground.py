@@ -7,49 +7,50 @@ import numpy as np
 from vispy import app
 
 N = target_max_int
+visualize = False
+if visualize:
+    monzos = [Monzo.get(i) for i in range(1, N + 1)]
 
-monzos = [Monzo.get(i) for i in range(1, N + 1)]
+    spf = make_spf(N)
+    prime_index = {p: i for i, p in enumerate(PRIMES)}
 
-spf = make_spf(N)
-prime_index = {p: i for i, p in enumerate(PRIMES)}
+    grid_df = load_or_build(
+        f"grid_df_{N}.csv",
+        lambda: build_grid_records(N, spf, prime_index),
+    )
 
-grid_df = load_or_build(
-    f"grid_df_{N}.csv",
-    lambda: build_grid_records(N, spf, prime_index),
-)
+    sqnorm_df = load_or_build(
+        f"square_norm_df_{N}.csv",
+        lambda: build_grid_records(N, spf, prime_index,
+                                value_of=lambda n, exps: sum(e*e for e in exps.values())),
+    )
 
-sqnorm_df = load_or_build(
-    f"square_norm_df_{N}.csv",
-    lambda: build_grid_records(N, spf, prime_index,
-                               value_of=lambda n, exps: sum(e*e for e in exps.values())),
-)
+    def build_normalized_records(N, spf):
+        rows = []
+        for n in range(2, N + 1):
+            exps = list(factor(n, spf))           
+            norm = np.sqrt(sum(e*e for _, e in exps)) or 1
+            val = 1.0
+            for p, e in exps:
+                val *= p ** (e / norm)
+            rows.append((n, val))
+        return pd.DataFrame(rows, columns=["int", "normalized_val"])
 
-def build_normalized_records(N, spf):
-    rows = []
-    for n in range(2, N + 1):
-        exps = list(factor(n, spf))           
-        norm = np.sqrt(sum(e*e for _, e in exps)) or 1
-        val = 1.0
-        for p, e in exps:
-            val *= p ** (e / norm)
-        rows.append((n, val))
-    return pd.DataFrame(rows, columns=["int", "normalized_val"])
+    normalized_df = load_or_build(f"normalized_monzos_{N}.csv",
+                            lambda: build_normalized_records(N, spf))
 
-normalized_df = load_or_build(f"normalized_monzos_{N}.csv",
-                        lambda: build_normalized_records(N, spf))
+    modular_coords_df = load_or_build(
+        f"modular_coords_df_{N}.csv",
+        lambda: build_modular_coord_records(N, spf, prime_index),
+    )
 
-modular_coords_df = load_or_build(
-    f"modular_coords_df_{N}.csv",
-    lambda: build_modular_coord_records(N, spf, prime_index),
-)
-
-canvases = [
-    # viz.scatter_view(grid_df, "int", "prime_index", value_col="exponent", title="grid", line_segments=False),
-    # viz.scatter_view(sqnorm_df, "int", "prime_index", value_col="exponent", title="square norm"),
-    # viz.scatter_view(normalized_df, "int", "normalized_val", value_col="normalized_val", continuous=True, title="normalized"),
-    viz.scatter_view(modular_coords_df, "int", "prime_index", value_col="coord", title="modular coordinates",),
-]
-# app.run()
+    canvases = [
+        # viz.scatter_view(grid_df, "int", "prime_index", value_col="exponent", title="grid", line_segments=False),
+        # viz.scatter_view(sqnorm_df, "int", "prime_index", value_col="exponent", title="square norm"),
+        # viz.scatter_view(normalized_df, "int", "normalized_val", value_col="normalized_val", continuous=True, title="normalized"),
+        viz.scatter_view(modular_coords_df, "int", "prime_index", value_col="coord", title="modular coordinates",),
+    ]
+    app.run()
 
 # odd primes are x^2 + y^2
 
@@ -118,9 +119,21 @@ funniest_int = 24
 # f % 13 = -15
 # f % 17 = -10
 
-# k \ge the first prime for which k=1 spells a problem
-
-print("Next prime")
-for i in range(1, 5):
+old_int = 1
+m = Monzo.get(old_int) 
+for _ in range(10):
+    old_int = m.to_int()
     m = m.next_prime()
-    print(m.to_int())
+    print(m.get_modular_coordinates())
+    if _ % 1000 == 0:
+        print(f"Generated {_} primes")
+
+for m in range(1, 7):
+    d = Monzo.from_modular_coordinates([-1, -1, -1, -m])
+    print(d)
+    print(d.get_modular_coordinates())
+    print(d.to_int())
+    e = Monzo.from_modular_coordinates([-1, -2, 1, -m + 2])
+    print(e)
+    print(e.get_modular_coordinates())
+    print(e.to_int())

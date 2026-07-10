@@ -172,6 +172,17 @@ def riemann_zeta(s: Complex):
         
     return r
 
+def von_mangoldt_function(n: int):
+    m = Monzo.get(n)
+    k = -1
+    for i in range(len(m)):
+        if m.get_index(i) > 0:
+              if k == -1:
+                k = i
+              else:
+                return 0
+    return np.log(PRIMES[k])
+
 # beware of clanker code below
 
 def load_or_build(path, build_fn, keep=True):
