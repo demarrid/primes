@@ -22,10 +22,17 @@ class Monzo:
         monzo_cache[self.to_int()] = self
 
     def __add__(self, other):
-        return Monzo(a + b for a, b in zip(self.e, other.e))
+        maxlen = max(len(self.e), len(other.e))
+        a_ext = list(self.e) + [0] * (maxlen - len(self.e))
+        b_ext = list(other.e) + [0] * (maxlen - len(other.e))
+        return Monzo(a + b for a, b in zip(a_ext, b_ext))
 
     def __sub__(self, other):
-        return Monzo(a - b for a, b in zip(self.e, other.e))
+        maxlen = max(len(self.e), len(other.e))
+        a_ext = list(self.e) + [0] * (maxlen - len(self.e))
+        b_ext = list(other.e) + [0] * (maxlen - len(other.e))
+        return Monzo(a - b for a, b in zip(a_ext, b_ext))
+   
 
     def __mul__(self, k): 
         return Monzo(k * a for a in self.e)
@@ -86,7 +93,6 @@ class Monzo:
         self.to_int()
         modular_coordinates = self.get_modular_coordinates()
         arr = [(1 if mod_coord + (k % PRIMES[i]) == 0 else 0) for i, mod_coord in enumerate(modular_coordinates)]
-
         val = self.to_int() + k
         if not any(arr):
             new_array = [0] * (len(arr) + 1)
@@ -95,7 +101,7 @@ class Monzo:
             if (len(self) == len(PRIMES)):
                 PRIMES.append(val)
 
-        toReturn = Monzo(arr)
+        toReturn = self.from_int(val)
         toReturn.self_int = val
         toReturn.c = len(arr) * [0]
 

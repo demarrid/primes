@@ -77,63 +77,26 @@ if visualize:
 # safe-prime: p and (p-1)/2 are both prime
 # super-prime: p is the kth prime, k is prime
 
-funny_int = 17
+# for m in range(1, 7):
+#     d = Monzo.from_modular_coordinates([-1, -1, -1, -m])
+#     print(d)
+#     print(d.get_modular_coordinates())
+#     print(d.to_int())
+#     e = Monzo.from_modular_coordinates([-1, -2, 1, -m + 2])
+#     print(e)
+#     print(e.get_modular_coordinates())
+#     print(e.to_int())
 
-m = Monzo.get(funny_int)
-print("Successor")
-print(m.successor())
+funny = 13
+m = Monzo.from_int(funny)
 
-# f % 2 = -1
-# f % 3 = -1 
-# f % 5 = -3 
-# f % 7 = -4
-# f % 11 = -5
-# f % 13 = -9
-# f % 17 = 0
-
-# hence successor monzo contains 1100000
-
-funnier_int = 18
-
-# f % 2 = 0
-# f % 3 = 0
-# f % 5 = -2
-# f % 7 = -3
-# f % 11 = -4
-# f % 13 = -8
-# f % 17 = -16
-
-# successor monzo contains none of these; hence it is prime
-
-# we represent integers using addition/multiplication, hence let $k=\sum{i=1}^n r_ia_i$ be the integer (for base 10 the a_i are the digits)
-
-# the next prime is funnier_int + k where \{ m_i + k \mod p_i \} \ne 0 for all i
-
-funniest_int = 24
-
-# f % 2 = 0
-# f % 3 = 0
-# f % 5 = -1
-# f % 7 = -4
-# f % 11 = -8
-# f % 13 = -15
-# f % 17 = -10
-
-old_int = 1
-m = Monzo.get(old_int) 
-for _ in range(10):
-    old_int = m.to_int()
-    m = m.next_prime()
+for i in range (1, 10):
+    print(f"====== Step {i} =======")
+    print(m)
     print(m.get_modular_coordinates())
-    if _ % 1000 == 0:
-        print(f"Generated {_} primes")
-
-for m in range(1, 7):
-    d = Monzo.from_modular_coordinates([-1, -1, -1, -m])
-    print(d)
-    print(d.get_modular_coordinates())
-    print(d.to_int())
-    e = Monzo.from_modular_coordinates([-1, -2, 1, -m + 2])
-    print(e)
-    print(e.get_modular_coordinates())
-    print(e.to_int())
+    print(m.to_int())
+    if m.get_index(0) > 0:
+        m = m - Monzo([1])
+    else:
+        m = (m + Monzo([0,1])).successor()
+    
