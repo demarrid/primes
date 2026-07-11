@@ -76,27 +76,3 @@ if visualize:
 # non-generous primes: p, the least positive primiive root is not a primitive root of p^2
 # safe-prime: p and (p-1)/2 are both prime
 # super-prime: p is the kth prime, k is prime
-
-# for m in range(1, 7):
-#     d = Monzo.from_modular_coordinates([-1, -1, -1, -m])
-#     print(d)
-#     print(d.get_modular_coordinates())
-#     print(d.to_int())
-#     e = Monzo.from_modular_coordinates([-1, -2, 1, -m + 2])
-#     print(e)
-#     print(e.get_modular_coordinates())
-#     print(e.to_int())
-
-funny = 13
-m = Monzo.from_int(funny)
-
-for i in range (1, 10):
-    print(f"====== Step {i} =======")
-    print(m)
-    print(m.get_modular_coordinates())
-    print(m.to_int())
-    if m.get_index(0) > 0:
-        m = m - Monzo([1])
-    else:
-        m = (m + Monzo([0,1])).successor()
-    

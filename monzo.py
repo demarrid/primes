@@ -86,6 +86,15 @@ class Monzo:
             self.c = [(self.to_int() % PRIMES[i]) - PRIMES[i] for i in range(len(self))]
         return self.c
 
+    def get_extended_modular_coordinates(self):
+        mods = self.get_modular_coordinates().copy()
+        for i in range(len(mods), len(PRIMES)):
+            p = PRIMES[i]
+            mods.append((self.to_int() % p) - p)
+            if p > self.to_int():
+                break
+        return mods
+
     def successor(self):
         return self.succeed(1)
 
