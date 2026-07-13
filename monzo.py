@@ -1,24 +1,37 @@
 from fractions import Fraction
 import math
+import glob
 
-target_max_int = 1_000_0
+target_max_int = 8_000_000
 
 stored_primes = [int(k) for k in open("primes.txt","r").read().replace("\n", ",").split(",")]
+
+if stored_primes[-1] < target_max_int:
+    stored_primes = []
+    files = sorted(glob.glob("./primelists/100000primes/*"), key=lambda x: x)
+    for file in files:
+        if len(stored_primes) == 0 or stored_primes[-1] < target_max_int:
+            with open(file, "r") as f:
+                for line in f:
+                    if len(line) > 0:
+                        stored_primes.append(int(line))
+
 PRIMES = [int(p) for p in stored_primes if p <= target_max_int]
 
 monzo_cache = {}
-
 color_sequence = ["#83ECF2", "#5FDEB6", "#E3B756", "#3B4AD9", "#22BF4B", "#8117BF", "#BF1773", "#85780B", "#12662F", "#6E0C2F", "#6E0C2F"]
 
 class Monzo:
     __slots__ = ("e", "c", "self_int", "self_norm", "self_square_norm",
              "self_fraction", "self_len", "self_color")
 
-    def __init__(self, exponents):
+    def __init__(self, exponents, int_val=None):
         self.e = list(exponents)
         self.c = None
         self.self_int = self.self_norm = self.self_square_norm = None
         self.self_fraction = self.self_len = self.self_color = None
+        if int_val is not None:
+            self.self_int = int_val
         monzo_cache[self.to_int()] = self
 
     def __add__(self, other):
@@ -77,6 +90,10 @@ class Monzo:
         self.self_fraction = f
         return self.self_fraction
 
+
+    def get_coordinates(self):
+        return self.e[:self.__len__()]
+
     def get_modular_coordinates(self):
         if self.c is not None:
             return self.c
@@ -98,7 +115,7 @@ class Monzo:
     def successor(self):
         return self.succeed(1)
 
-    def succeed(self, k):
+    def succeed(self, k, to_prime=False):
         self.to_int()
         modular_coordinates = self.get_modular_coordinates()
         arr = [(1 if mod_coord + (k % PRIMES[i]) == 0 else 0) for i, mod_coord in enumerate(modular_coordinates)]
@@ -109,8 +126,9 @@ class Monzo:
             arr = new_array
             if (len(self) == len(PRIMES)):
                 PRIMES.append(val)
-
-        toReturn = self.from_int(val)
+        if to_prime:
+            PRIMES.append(val)
+        toReturn = self.from_prime_of_index(len(PRIMES) - 1) if to_prime else self.from_int(val)
         toReturn.self_int = val
         toReturn.c = len(arr) * [0]
 
@@ -122,15 +140,25 @@ class Monzo:
         
         return toReturn
 
+
+    def prime(self):
+        return self.norm() == 1
+
     def next_prime(self):
+        if self.to_int() < PRIMES[-1]:
+            for i in range(len(self), len(PRIMES)):
+                if self.to_int() < PRIMES[i]:
+                    return self.from_prime_of_index(i)
+
         modular_coordinates = self.get_modular_coordinates()
+    
         increase = 1
         for candidate in range(1-modular_coordinates[0], PRIMES[len(self)-1], 2):
             if all(modular_coordinates[index] + (candidate % PRIMES[index]) != 0 for index in range(len(modular_coordinates))):
                 increase = candidate
                 break
 
-        return self.succeed(increase)
+        return self.succeed(increase, to_prime=True)
 
     def to_int(self):
         if self.self_int is not None:
@@ -140,7 +168,6 @@ class Monzo:
             return self.self_int
 
         self.self_int = math.prod(p ** e for p, e in zip(PRIMES, self.e))
-        self.get_modular_coordinates()
         return self.self_int
 
     def get_index(self, i):
@@ -188,6 +215,11 @@ class Monzo:
         return m
 
     @classmethod
+    def from_prime_of_index(cls, i):
+        m = cls([0] * (i-1) + [1], PRIMES[i])
+        return m
+
+    @classmethod
     def get(cls, n: int):
         return cls.from_int(n)
 
@@ -215,16 +247,14 @@ class Monzo:
                     coefficients[k] += 1
                     solved = False
                     break
-
             
         return cls.from_int(target)
-
 
     @classmethod
     def get_nth_prime(cls, n):
         k = n - 1
         while k > len(PRIMES) - 1:
-            m = cls.get(PRIMES[:-1])
+            m = cls.get(PRIMES[-1])
             m = m.next_prime()
             k -= 1
         return PRIMES[n-1]
@@ -233,3 +263,13 @@ class Monzo:
     def get_prime_of_index(cls, index):
         return cls.get_nth_prime(index + 1)
 
+    @classmethod
+    def is_prime(cls, n):
+        if n in monzo_cache:
+            return monzo_cache[n].prime()
+        for i in range(len(PRIMES)):
+            if PRIMES[i] == n:
+                return True
+            if PRIMES[i] > n:
+                return False
+        return False

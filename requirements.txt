@@ -2,3 +2,5 @@ pandas
 vispy
 numpy
 PyQt6
+networkx
+pygraphviz

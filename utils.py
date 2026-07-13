@@ -1,18 +1,18 @@
-from fractions import Fraction
-from monzo import PRIMES, Monzo
+from monzo import PRIMES, Monzo, target_max_int
 import numpy as np
 import random
 import os
 import pandas as pd
+import mpmath as mp
 
 class Complex:
-    def __init__(self, real: Fraction, imaginary: Fraction):
+    def __init__(self, real: mp.mpf, imaginary: mp.mpf):
         self.real = real
         self.imaginary = imaginary
 
     @staticmethod
-    def from_polar(r: Fraction, theta: Fraction):
-        return Complex(r * np.cos(theta), r * np.sin(theta))
+    def from_polar(r: mp.mpf, theta: mp.mpf):
+        return Complex(r * mp.cos(theta), r * mp.sin(theta))
     
     def conjugate(self):
         return Complex(self.real, -self.imaginary)
@@ -20,33 +20,83 @@ class Complex:
     def norm(self):
         return self.__abs__()
     
-    def __pow__(self, n: int):
-        return Complex(self.real ** n, self.imaginary ** n)
+    def __pow__(self, other): 
+        return self.to_power(other)
 
     def angle(self):
-        return np.arctan2(self.imaginary, self.real)
+        return mp.atan2(self.imaginary, self.real)
+
+    def _coerce(self, other):
+        if isinstance(other, Complex):
+            return other
+        if isinstance(other, complex):
+            return Complex(mp.mpf(other.real), mp.mpf(other.imag))
+        if isinstance(other, (int, float, mp.mpf)):
+            return Complex(mp.mpf(other), mp.mpf(0))
+        return NotImplemented
 
     def __add__(self, other):
+        other = self._coerce(other)
+        if other is NotImplemented:
+            return NotImplemented
         return Complex(self.real + other.real, self.imaginary + other.imaginary)
 
+    def __radd__(self, other):
+        return self.__add__(other)
+
     def __sub__(self, other):
+        other = self._coerce(other)
+        if other is NotImplemented:
+            return NotImplemented
         return Complex(self.real - other.real, self.imaginary - other.imaginary)
 
+    def __rsub__(self, other):
+        return self.__sub__(other)
+
     def __mul__(self, other):
+        other = self._coerce(other)
+        if other is NotImplemented:
+            return NotImplemented
         return Complex(self.real * other.real - self.imaginary * other.imaginary, self.real * other.imaginary + self.imaginary * other.real)
 
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
     def __truediv__(self, other):
+        other = self._coerce(other)
+        if other is NotImplemented:
+            return NotImplemented
         return Complex((self.real * other.real + self.imaginary * other.imaginary) / (other.real ** 2 + other.imaginary ** 2), (self.imaginary * other.real - self.real * other.imaginary) / (other.real ** 2 + other.imaginary ** 2))
    
+    def __rtruediv__(self, other):
+        return self.__truediv__(other)
+
     def __repr__(self):
         return f"{self.real} + {self.imaginary}i"
    
     def __eq__(self, other):
+        other = self._coerce(other)
+        if other is NotImplemented:
+            return NotImplemented
         return self.real == other.real and self.imaginary == other.imaginary
 
     def __abs__(self):
-        return np.sqrt(self.real ** 2 + self.imaginary ** 2)
+        return mp.sqrt(self.real ** 2 + self.imaginary ** 2)
     
+    def scalar_mul(self, other: float):
+        return Complex(self.real * other, self.imaginary * other)
+    
+    def to_power(self, other):
+        other = self._coerce(other)
+        if other is NotImplemented:
+            return NotImplemented
+
+        # e^(zln|self|)
+        pow = other.scalar_mul(mp.log(self.norm()))
+
+        real = mp.e**(pow.real)
+        k = Complex(mp.cos(pow.imaginary), mp.sin(pow.imaginary))
+        return k.scalar_mul(real)
 
 def hsv_to_hex(h, s, v):
     # Normalize S and V to 0-1
@@ -90,13 +140,11 @@ def safe_padic_order(p, n: int):
     indx = PRIMES.index(p)
     return monzo.get_index(indx) if indx > -1 else -1
 
-def padic_order(p, fraction: Fraction):
+def padic_order(p, fraction: mp.mpf):
     return safe_padic_order(p, fraction.numerator) - safe_padic_order(p, fraction.denominator)
 
-def padic_magnitude(p, fraction: Fraction):
+def padic_magnitude(p, fraction: mp.mpf):
     return p ** (-padic_order(p, fraction))
-
-# \sum_{n=1}^{\infty} \frac{\mu(n)}{n^s} = \frac{1}{\zeta(s)}
 
 def mobius_function(n: int):
     if n == 1:
@@ -125,7 +173,6 @@ def cyclotomic_field(n: int):
 # algebraic number: root of a monic polynomial with integer coefficients
 
 # elliptic curve: y^2 = x^3 + ax + b
-
 
 def generate_random_elliptic_curve(n: int):
     x_0 = random.randint() % n
@@ -163,14 +210,75 @@ def get_dual_prime_group(prime_index: int):
 def to_dirichlet_character(q: int, character: lambda a: int):
     return lambda n: (character(n) if Monzo.get(n) * Monzo.get(q) == 0 else 0)
 
-def riemann_zeta(s: Complex):
-    r = 1
 
-    for i in range(len(PRIMES)):
-        p = PRIMES[i]
-        r *= 1 / (1 - p ** (-s))
+# lodone, 2024
+def riemann_zeta(s: Complex):
+    if s.real <= 1:
+        M = 2
+
+        t = s.imaginary
+        epsilon = s.real - 0.5
+        p = mp.sqrt(t / ( 2 * mp.pi))
+        omega = mp.sqrt((2* mp.pi) / t)  # noqa: F841
+        N = mp.floor(p)
+
+        sup_err_norm = mp.pow(mp.e, 0.1*t) # for |t| > 100  # noqa: F841
+
+        Z = Complex(0, 0)
+
+        for n in range(1, N+1):
+            epsilon_ln_root_no_e = epsilon*mp.log(mp.pow(t/(2*mp.pi *n ** 2), 1/2))
+            t_ln_root_minus = t * mp.log(mp.pow(t / (2*mp.e*mp.pi*(n ** 2)), 1/2) - (1/8) * mp.pi)
+            reciprocal_root_n = mp.pow(n, -1/2)
+            L = mp.cosh(epsilon_ln_root_no_e) * reciprocal_root_n * mp.cos(t_ln_root_minus)
+            R = mp.sinh(epsilon_ln_root_no_e) * reciprocal_root_n * mp.sin(t_ln_root_minus)     
+
+            Z += 2 * L
+            Z += Complex(0, 2) * R
+
+        R = 0
+
+        for j in range(M + 1):
+            C_j_p_epsilon = Complex(0, 0)
+            if j == 0:
+                C_j_p_epsilon = mp.cos(2 * mp.pi * (mp.pow(p, 2) - p - (1/16))) / mp.cos(2 * mp. pi * p) # edwards, riemann's zeta function, 154
+            if j == 1:
+                # involves 3rd order derivatives
+                C_j_p_epsilon = Complex(0, 0)
+            if j == 2:
+                # involves 6th order derivatives
+                C_j_p_epsilon = Complex(0, 0) 
+            else:
+                raise ValueError(f"Invalid j: {j}")
+
+            R += C_j_p_epsilon * (2 * mp.pi / t) ** (j / 2)
         
+        R *= (-1) ** (N - 1) * (2 * mp.pi / t) ** (1/4)
+
+        Z += R
+
+        # our error interval is [Z - sup_err_norm, Z + sup_err_norm]
+
+        return Z
+
+    return euler_product(s)
+
+def euler_product(s: Complex):
+    r = Complex(1, 0)
+    negative_s = Complex(0, 0) - s
+    max_p = PRIMES[-1]
+    p = 2
+    k = 1
+    while p < target_max_int:
+        r *= Complex(1, 0) / (Complex(1, 0) - Complex(p, 0) ** negative_s)
+        k += 1
+        p = Monzo.from_prime_of_index(k - 2).next_prime().to_int() if p >= max_p else PRIMES[k-1]
+        if k % 100000 == 0:
+            print(f"Performing multiplication of {k}/{len(PRIMES) + 1}th prime")
     return r
+
+def to_riemann_harmonic(s: Complex):
+    return lambda x: (x**s.real / (mp.ln(x) * s.norm())) * mp.cos(s.imaginary * mp.ln(x) - mp.atan(s.imaginary / s.real))
 
 def von_mangoldt_function(n: int):
     m = Monzo.get(n)
@@ -181,7 +289,18 @@ def von_mangoldt_function(n: int):
                 k = i
               else:
                 return 0
-    return np.log(PRIMES[k])
+    return mp.log(PRIMES[k])
+
+def willans(n: int):
+    k = 1
+
+    for i in range(1, 2** n + 1):
+        acc = 0
+        for j in range(1, i+1):
+            acc += mp.floor ((mp.cos(mp.pi * (mp.factorial(j-1)+1)/ j) ** 2))
+        k += mp.floor((n / acc) ** (1/n))
+
+    return k
 
 # beware of clanker code below
 
@@ -239,4 +358,4 @@ def build_modular_coord_records(N, spf, prime_index):
 
 def sigmoid(x):
     x*=3
-    return 1 / (1 + np.exp(-x))
+    return 1 / (1 + mp.exp(-x))
