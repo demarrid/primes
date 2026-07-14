@@ -2,7 +2,8 @@ from fractions import Fraction
 import math
 import glob
 
-target_max_int = 8_000_000
+target_max_int = 100_00_0
+max_partition_len = 25
 
 stored_primes = [int(k) for k in open("primes.txt","r").read().replace("\n", ",").split(",")]
 
@@ -90,9 +91,11 @@ class Monzo:
         self.self_fraction = f
         return self.self_fraction
 
-
     def get_coordinates(self):
-        return self.e[:self.__len__()]
+        if len(self) > max_partition_len *2:
+            return self.e[:max_partition_len] + self.e[len(self) - max_partition_len:]
+        else:
+            return self.e[:self.__len__()]
 
     def get_modular_coordinates(self):
         if self.c is not None:
@@ -100,8 +103,14 @@ class Monzo:
         if len(self) == 0:
             self.c = [-1]
         else:
-            self.c = [(self.to_int() % PRIMES[i]) - PRIMES[i] for i in range(len(self))]
+            if len(self) > max_partition_len *2:
+                self.c = [(self.to_int() % PRIMES[i]) - PRIMES[i] for i in range(max_partition_len)] + [(self.to_int() % PRIMES[i]) - PRIMES[i] for i in range(len(self) - max_partition_len, len(self))]
+            else:
+                self.c = [(self.to_int() % PRIMES[i]) - PRIMES[i] for i in range(len(self))]
         return self.c
+
+    def get_positive_modular_coordinates(self):
+        return [k % PRIMES[j] for j, k in enumerate(self.get_modular_coordinates())]
 
     def get_extended_modular_coordinates(self):
         mods = self.get_modular_coordinates().copy()
@@ -124,10 +133,8 @@ class Monzo:
             new_array = [0] * (len(arr) + 1)
             new_array[-1] = 1
             arr = new_array
-            if (len(self) == len(PRIMES)):
+            if (val > PRIMES[-1]):
                 PRIMES.append(val)
-        if to_prime:
-            PRIMES.append(val)
         toReturn = self.from_prime_of_index(len(PRIMES) - 1) if to_prime else self.from_int(val)
         toReturn.self_int = val
         toReturn.c = len(arr) * [0]
@@ -172,6 +179,11 @@ class Monzo:
 
     def get_index(self, i):
         return self.e[i] if i < len(self.e) else 0
+    
+    def with_index(self, i, value):
+        new_e = self.e.copy()
+        new_e[i] = value
+        return Monzo(new_e)
 
     def as_color(self):
         if self.self_color is not None:
@@ -197,6 +209,7 @@ class Monzo:
 
     @classmethod
     def from_int(cls, n):
+        n = int(n)
         COPY = n
         if n < 1:
             return cls([-1] * len(PRIMES))
@@ -208,7 +221,7 @@ class Monzo:
                 exps[i] += 1
                 n //= p
         if n != 1:
-            cls.get_nth_prime(len(PRIMES) + 1)
+            cls.get_prime_of_index(len(PRIMES))
             return cls.from_int(n)
         m = cls(exps)
         m.self_int = COPY
@@ -216,7 +229,7 @@ class Monzo:
 
     @classmethod
     def from_prime_of_index(cls, i):
-        m = cls([0] * (i-1) + [1], PRIMES[i])
+        m = cls([0] * (i) + [1], PRIMES[i])
         return m
 
     @classmethod

@@ -262,7 +262,7 @@ def draw_collatz_graph(edges, pos, face, index, label_fn=None):
     view.camera = TrackpadCamera(aspect=1.3) 
 
     markers = scene.visuals.Markers()
-    markers.set_data(pos, face_color=face, size=12, edge_width=1, edge_color="#000000", symbol="disc")
+    markers.set_data(pos, face_color=face, size=12, edge_width=0.5, edge_color="#000000", symbol="disc")
     markers.set_gl_state(depth_test=False, blend=True,
                         blend_func=("src_alpha", "one_minus_src_alpha"))
 
@@ -272,6 +272,39 @@ def draw_collatz_graph(edges, pos, face, index, label_fn=None):
         lines = scene.visuals.Line(
             pos=seg, connect="segments",
             color="#c7c7c7", width=2,
+            method="gl", antialias=True,
+        )
+        lines.order = -10
+        view.add(lines)
+
+    view.camera.set_range()
+
+    attach_hover(canvas, view, markers, pos, size=12, label_fn=label_fn)
+
+    return canvas 
+
+def draw_goldbach_graph(edges, pos, face, index, label_fn=None):
+    seg = np.array(
+        [[pos[index[u]], pos[index[v]]] for u, v in edges],
+        dtype=float,
+    ).reshape(-1, 2)
+
+    canvas = scene.SceneCanvas(keys="interactive", show=True, title="goldbach", bgcolor="#2B2427")
+
+    view = canvas.central_widget.add_view()
+    view.camera = TrackpadCamera(aspect=1.3) 
+
+    markers = scene.visuals.Markers()
+    markers.set_data(pos, face_color=face, size=12, edge_width=0.5, edge_color="#000000", symbol="disc")
+    markers.set_gl_state(depth_test=False, blend=True,
+                        blend_func=("src_alpha", "one_minus_src_alpha"))
+
+    view.add(markers)
+
+    if len(seg):
+        lines = scene.visuals.Line(
+            pos=seg, connect="segments",
+            color="#8C8C8C", width=2,
             method="gl", antialias=True,
         )
         lines.order = -10
