@@ -19,19 +19,31 @@ edges = []
 predecessor_nodes = []
 source_nodes = []
 
+def improvement(n: int, nxt: int):
+    print(f"n: {n}, nxt: {nxt}")
+    while n >= 2:
+        n /=2
+    while nxt >= 2:
+        nxt /= 2
+    n = abs(1.5 - n)
+    nxt = abs(1.5 - nxt)
+    value = 1 + (n - nxt)
+    print(f"value: {value}")
+    return value
+
 def do_collatz(n):
-    copy = n
+    if n <= 0:
+        return
     while n > 0 and n % 2 == 0:
         n //= 2
     while n != 1:
         nxt = 3 * n + 1
         while nxt % 2 == 0:
             nxt //= 2
-        edges.append((n, nxt))
 
-        if n == 43079:
-            print(f"n: {n}\nnxt: {nxt} \ncopy: {copy}")
-        
+        weight = improvement(n, nxt)
+ 
+        edges.append((n, nxt, {"weight": weight}))
         if nxt in mod_2_nodes:
             break
         mod_2_nodes.append(nxt)
@@ -76,9 +88,9 @@ def reverse_collatz(sink:int, width:int, depth:int):
         if len(preds) < width:
             print(f"Insufficient predecessors for {sink} at depth {depth} ({len(preds)} < {width})")
 
-reverse_collatz(1, 50, 2)
+# reverse_collatz(1, 25, 2)
 
-for i in range(2000):
+for i in range(100):
    do_collatz(i)
 
 print(f"Collatz completed, size of graph: {len(mod_2_nodes) + len(predecessor_nodes)} nodes, {len(edges)} edges")
@@ -88,10 +100,11 @@ t = time.time()
 G.add_edges_from(edges)
 G.graph["rankdir"] = "BT" 
 G.graph["nodesep"] = 1.0
-G.graph["ranksep"] = 0.8
+G.graph["overlap_scaling"] = 2
+G.graph["ranksep"] = "2.0"
 
-# pos = nx.nx_agraph.graphviz_layout(G, prog="dot")  
-pos = nx.nx_agraph.graphviz_layout(G.reverse(), prog="twopi", root=1)
+pos = nx.nx_agraph.graphviz_layout(G, prog="dot")  
+# pos = nx.nx_agraph.graphviz_layout(G.reverse(), prog="twopi", root=1)
 
 nodes = list(G.nodes())
 index = {n: i for i, n in enumerate(nodes)}
@@ -104,6 +117,9 @@ evil_sable  = ColorArray("#666666").rgba
 source  = ColorArray("#edb193").rgba
 pure_source = ColorArray("#FFFFFF").rgba
 green_goblin = ColorArray("#1ced1c").rgba
+orange_obviant = ColorArray("#DB782A").rgba
+
+print(f"Graph organization took ({time.time() - t}s)")
 
 t = time.time()
 for i, n in enumerate(nodes):
@@ -114,10 +130,10 @@ for i, n in enumerate(nodes):
     elif n in predecessor_nodes:
         face[i] = green_goblin
     elif n in mod_2_nodes:
-        face[i] = odd_teal
+        face[i] = odd_teal if n % 3 == 1 else orange_obviant
 
 def label_fn(i):
-    if i > 1e12:
+    if nodes[i] > Monzo.get_prime_of_index(-1):
         return str(nodes[i])
 
     monzo = Monzo.from_int(nodes[i])

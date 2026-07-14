@@ -252,7 +252,7 @@ def scatter_view(df, x, y, value_col=None, continuous=False, size=9, title="scat
 
 def draw_collatz_graph(edges, pos, face, index, label_fn=None):
     seg = np.array(
-        [[pos[index[u]], pos[index[v]]] for u, v in edges],
+        [[pos[index[u]], pos[index[v]]] for u, v, _ in edges],
         dtype=float,
     ).reshape(-1, 2)
 
