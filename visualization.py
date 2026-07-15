@@ -251,10 +251,13 @@ def scatter_view(df, x, y, value_col=None, continuous=False, size=9, title="scat
     return canvas
 
 def draw_collatz_graph(edges, pos, face, index, label_fn=None):
-    seg = np.array(
-        [[pos[index[u]], pos[index[v]]] for u, v, _ in edges],
-        dtype=float,
-    ).reshape(-1, 2)
+
+    if len(edges[0]) == 2:
+        array = [[pos[index[u]], pos[index[v]]] for u, v in edges]
+    else:
+        array = [[pos[index[u]], pos[index[v]]] for u, v, w in edges]
+
+    seg = np.array(array, dtype=float).reshape(-1, 2)
 
     canvas = scene.SceneCanvas(keys="interactive", show=True, title="collatz", bgcolor="#2B2427")
 

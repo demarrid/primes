@@ -13,40 +13,68 @@ def print_pos_mod_coords(m: Monzo):
 
 G = nx.DiGraph()
 
-mod_2_nodes = []
+collatz_nodes = []
 start_nodes = []
-edges = []
+collatz_edges = []
 predecessor_nodes = []
 source_nodes = []
 
-def improvement(n: int, nxt: int):
-    print(f"n: {n}, nxt: {nxt}")
-    while n >= 2:
-        n /=2
-    while nxt >= 2:
-        nxt /= 2
-    n = abs(1.5 - n)
-    nxt = abs(1.5 - nxt)
-    value = 1 + (n - nxt)
-    print(f"value: {value}")
-    return value
+def improvement(n, nxt):
+    n = 3 * n + 1.0
+    nxt = 3 * nxt + 1.0
+    n = np.log2(n) % 1
+    nxt = np.log2(nxt) % 1
+    return abs(nxt - n)
+
+show_odd_nodes = False
 
 def do_collatz(n):
     if n <= 0:
         return
+    if show_odd_nodes:
+        do_odd_collatz(n)
+    else:
+        do_even_collatz(n)
+
+def do_even_collatz(n):
+    visited = set()
+    while n != 1 and n != 16 and n > 0:
+        if n in visited:
+            break
+        visited.add(n)
+
+        if n not in collatz_nodes:
+            collatz_nodes.append(n)
+
+        k = n
+        while k % 2 == 0:
+            k //= 2
+        
+        nxt = 3 * k + 1
+
+        collatz_edges.append((n, nxt))
+
+        if nxt in collatz_nodes:
+            break
+
+        n = nxt
+
+    if n > 0 and n not in collatz_nodes:
+        collatz_nodes.append(n)
+
+def do_odd_collatz(n):
     while n > 0 and n % 2 == 0:
         n //= 2
+        
     while n != 1:
         nxt = 3 * n + 1
         while nxt % 2 == 0:
             nxt //= 2
 
-        weight = improvement(n, nxt)
- 
-        edges.append((n, nxt, {"weight": weight}))
-        if nxt in mod_2_nodes:
+        collatz_edges.append((n, nxt))
+        if nxt in collatz_nodes:
             break
-        mod_2_nodes.append(nxt)
+        collatz_nodes.append(nxt)
         n = nxt
 
 t = time.time()
@@ -85,19 +113,25 @@ def reverse_collatz(sink:int, width:int, depth:int):
         for p in preds:
             predecessor_nodes.append(p)
             do_collatz(p)
-        if len(preds) < width:
-            print(f"Insufficient predecessors for {sink} at depth {depth} ({len(preds)} < {width})")
 
-# reverse_collatz(1, 25, 2)
+# reverse_collatz(1, 3, 7)
 
-for i in range(100):
-   do_collatz(i)
+max = 3
 
-print(f"Collatz completed, size of graph: {len(mod_2_nodes) + len(predecessor_nodes)} nodes, {len(edges)} edges")
+for a in range(max):
+    for b in range(max):
+        for c in range(max):
+            for d in range(max):
+                m = Monzo.from_modular_coordinates([1, a + 1, b + 1, c + 1, d + 1])
+                if m.to_int() > 1:
+                    print(f"Collatz {m.to_int()}")
+                    do_collatz(m.to_int())
+
+print(f"Collatz completed, size of graph: {len(collatz_nodes) + len(predecessor_nodes)} nodes, {len(collatz_edges)} edges")
 print(f"Time taken: {time.time() - t}s")
 t = time.time()
 
-G.add_edges_from(edges)
+G.add_edges_from(collatz_edges)
 G.graph["rankdir"] = "BT" 
 G.graph["nodesep"] = 1.0
 G.graph["overlap_scaling"] = 2
@@ -105,6 +139,7 @@ G.graph["ranksep"] = "2.0"
 
 pos = nx.nx_agraph.graphviz_layout(G, prog="dot")  
 # pos = nx.nx_agraph.graphviz_layout(G.reverse(), prog="twopi", root=1)
+# pos = nx.nx_agraph.graphviz_layout(G, prog="neato") 
 
 nodes = list(G.nodes())
 index = {n: i for i, n in enumerate(nodes)}
@@ -129,7 +164,7 @@ for i, n in enumerate(nodes):
         face[i] = evil_sable
     elif n in predecessor_nodes:
         face[i] = green_goblin
-    elif n in mod_2_nodes:
+    elif n in collatz_nodes:
         face[i] = odd_teal if n % 3 == 1 else orange_obviant
 
 def label_fn(i):
@@ -150,5 +185,5 @@ def label_fn(i):
 
 print(f"Pre-graph took ({time.time() - t}s)")
 
-canvas = draw_collatz_graph(edges, xy, face, index, label_fn=label_fn)
+canvas = draw_collatz_graph(collatz_edges, xy, face, index, label_fn=label_fn)
 app.run()

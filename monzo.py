@@ -239,9 +239,9 @@ class Monzo:
     @classmethod
     def from_modular_coordinates(cls, coordinates: list[int]):
         for i in range(len(coordinates)):
-            if coordinates[i] == 0:
-                return cls([-1] * len(coordinates))
             coordinates[i] = (coordinates[i] % PRIMES[i]) - PRIMES[i]
+            if coordinates[i] == -PRIMES[i]:
+                return cls([-1] * len(coordinates))
 
         solved = False
         coefficients = [0] * len(coordinates)
