@@ -1,11 +1,15 @@
 import numpy as np
-from vispy import scene
+from vispy import scene, app
 from vispy.color import ColorArray, get_colormap
 from vispy.scene.visuals import Rectangle
 from vispy.color import Color
 from monzo import Monzo, color_sequence
 from utils import sigmoid
+import sys
+from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import QApplication, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget
 
+app.use_app("pyqt6")
 class TrackpadCamera(scene.PanZoomCamera):
     on_change = None  
 
@@ -285,6 +289,100 @@ def draw_collatz_graph(edges, pos, face, index, label_fn=None):
     attach_hover(canvas, view, markers, pos, size=12, label_fn=label_fn)
 
     return canvas 
+
+class NumberLineWindow(QWidget):
+    def __init__(self, calculate):
+        super().__init__()
+        self.value = 1
+        self.calculate = calculate
+        self.canvas = scene.SceneCanvas(keys="interactive", bgcolor="white")
+
+        grid = self.canvas.central_widget.add_grid()
+
+        self.view = grid.add_view(row=0, col=1)
+        self.view.camera = scene.PanZoomCamera(aspect=None)
+
+        x_axis = scene.AxisWidget(
+            orientation="bottom",
+            axis_color="black",
+            tick_color="black",
+            text_color="black",
+            tick_font_size=10,
+        )
+        x_axis.height_max = 50
+        grid.add_widget(x_axis, row=1, col=1)
+        x_axis.link_view(self.view)
+
+        y_axis = scene.AxisWidget(
+            orientation="left",
+            axis_color="black",
+            tick_color="black",
+            text_color="black",
+            tick_font_size=10,
+        )
+        y_axis.width_max = 60
+        grid.add_widget(y_axis, row=0, col=0)
+        y_axis.link_view(self.view)
+        self.number_line = scene.visuals.Line(
+            color="black",
+            width=2,
+            parent=self.view.scene,
+        )
+        self.markers = scene.visuals.Markers(parent=self.view.scene)
+        self.label = QLabel()
+        decrease = QPushButton("−")
+        increase = QPushButton("+")
+        decrease.clicked.connect(lambda: self.change_value(-1))
+        increase.clicked.connect(lambda: self.change_value(1))
+        controls = QHBoxLayout()
+        controls.addWidget(decrease)
+        controls.addWidget(self.label)
+        controls.addWidget(increase)
+        layout = QVBoxLayout(self)
+        layout.addLayout(controls)
+        layout.addWidget(self.canvas.native)
+        self.zoom_timer = QTimer(self)
+        self.zoom_timer.setSingleShot(True)
+        self.zoom_timer.timeout.connect(self.refresh_points)
+        self.view.camera.events.transform_change.connect(
+            lambda event: self.zoom_timer.start(100)
+        )
+        QTimer.singleShot(0, self.initialize_view)
+
+    def initialize_view(self):
+        self.view.camera.rect = (0, -2, 100, 4)
+        self.refresh_points()
+
+    def change_value(self, amount):
+        self.value = max(1, self.value + amount)
+        self.refresh_points()
+
+    def refresh_points(self):
+        rect = self.view.camera.rect
+        x_min, x_max = rect.left, rect.right
+        positions = self.calculate(self.value, x_min, x_max) if self.calculate is not None else np.array([])
+        self.number_line.set_data(
+            pos=np.array([[x_min, 0], [x_max, 0]], dtype=float)
+        )
+        self.markers.set_data(
+            positions,
+            face_color="#e63946",
+            edge_color="black",
+            size=12,
+        )
+        self.label.setText(f"value = {self.value}")
+
+
+def calculate_collatz_filter(value, x_min, x_max):
+
+    return np.column_stack()
+
+def draw_collatz_filter(calc_fn):
+    qt_app = QApplication.instance() or QApplication(sys.argv)
+    window = NumberLineWindow(calc_fn)
+    window.resize(900, 300)
+    window.show()
+    sys.exit(qt_app.exec())
 
 def draw_goldbach_graph(edges, pos, face, index, label_fn=None):
     seg = np.array(
