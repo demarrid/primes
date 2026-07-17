@@ -143,7 +143,7 @@ def graph():
     print( f"Collatz completed, size of graph: {len(collatz_nodes) + len(predecessor_nodes)} nodes, {len(collatz_edges)} edges")
 
     print(f"Time taken: {time.time() - t}s")
-    t = time.time()
+    t = time.time() 
 
     G.add_edges_from(collatz_edges)
     G.graph["rankdir"] = "BT"
@@ -212,12 +212,12 @@ def graph():
 def filter():
     def filter_fn(index, x_min, x_max):
         x_min = max(1, x_min)
-        base = [i for i in range(int(x_min), int(x_max) + 1)]
+        result = [i for i in range(int(x_min), int(x_max) + 1)]
 
         removed_0 = []
         if index >= 0:
             for i in range(1, int(np.log2(x_max)) + 1):
-                base.remove(2 ** i)
+                result.remove(2 ** i)
                 removed_0.append(2 ** i)
                 print(f"Removed 0: {2 ** i}")
 
@@ -228,30 +228,61 @@ def filter():
                 if r.is_integer():
                     for l in range(0, int(np.log2( x_max / r)) + 1):
                         v = int(r * 2 ** l)
-                        if v in base:
-                            base.remove(v)
+                        if v in result:
+                            result.remove(v)
                             removed_1.append(v)
                             print(f"Removed 1: {v}")
-        
-        removed_d = [[] for _ in range(max(0, index - 1))]
+
+        removed_2 = []
+
         if index >= 2:
+            for i in removed_1:
+                if r % 2 == 0:
+                    continue
+                r = i
+                for p in range(0, int(x_max / r) + 1):
+                    possible_z = (p * r - 1) / 3
+                    if possible_z.is_integer() and possible_z > 0:
+                        for power in range(0, int(np.log2( x_max / possible_z)) + 1):
+                            v = int(possible_z * 2 ** power)
+                            if v in result:
+                                result.remove(v)
+                                removed_2.append(v)
+                                print(f"Removed 2: {v}")
+
+        removed_d = [[] for _ in range(max(0, index - 1))]
+        if index >= 3:
             for f in range(0, index - 1):
-                d = f + 2
+
+                d = f + 3
                 prevs = removed_d[f] if f > 0 else removed_1
                 for prev in prevs:
-                    for pp in range(0, int(np.log2( x_max )) + 1):# toimprove
-                        k_mod_r = ( -2 ** Monzo.from_int(prev).get_index(0)-3**(d-2)) * (3.0 **(-d)) * (2**pp)
-                        if k_mod_r.is_integer() or True:
-                            for z in range(1, int(x_max / k_mod_r) + 1):
-                                v = int(k_mod_r * z)
-                                if v in base:
-                                    base.remove(v)
-                                    removed_d[f].append(v)
-                                    print(f"Removed d: {v}")
+                    u = Monzo.from_int(prev).get_index(0)
+                    w = Monzo.from_int((prev / (2**u)*3+1)).get_index(0)
+                    r = 3 **(d-1) * prev / (2**w)+3**(d-3)+2**u
 
-        return np.column_stack((base, np.zeros(len(base))))
+                    if r % 3 != 1:
+                        continue
+                        
+                    print(f"r: {r}")
+                    print(f"prev: {prev}")
+                    print(f"u: {u}")
+                    for pp in range(0, int(np.log2( x_max )) + 1):# toimprove
+                        print(f"pp: {pp}")
+                        x_mod_r = ( -2 ** u-3**(d-2)) * (3.0 **(-d)) * (2**pp)
+                        print(f"x_mod_r: {x_mod_r}")
+                        if x_mod_r.is_integer():
+                            for z in range(1, int(x_max / abs(x_mod_r)) + 1):
+                                # print(f"z: {z}")
+                                v = int(x_mod_r - r*z)
+                                # print(f"v: {v}")
+                                if v in result:
+                                    result.remove(v)
+                                    removed_d[f].append(v)
+                                    print(f"Removed {d}: {v}")
+
+        return np.column_stack((result, np.zeros(len(result))))
 
     draw_collatz_filter(filter_fn)
 
 filter()
-graph()
