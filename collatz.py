@@ -216,65 +216,84 @@ def filter():
 
         removed_0 = []
         if index >= 0:
-            for i in range(1, int(np.log2(x_max)) + 1):
-                result.remove(2 ** i)
-                removed_0.append(2 ** i)
-                print(f"Removed 0: {2 ** i}")
+            for r in range(1, int(np.log2(x_max)) + 1):
+                result.remove(2 ** r)
+                removed_0.append(2 ** r)
+                # print(f"Removed 0: {2 ** i}")
 
         removed_1 = []
         if index >= 1:
-            for i in removed_0:
-                r = (i - 1) / 3
+            for r in removed_0:
+                r = (r - 1) / 3
                 if r.is_integer():
-                    for l in range(0, int(np.log2( x_max / r)) + 1):
+                    for l in range(0, int(2* np.log2( x_max)) + 1):
                         v = int(r * 2 ** l)
                         if v in result:
                             result.remove(v)
                             removed_1.append(v)
-                            print(f"Removed 1: {v}")
+                            # print(f"Removed 1: {v}")
 
         removed_2 = []
 
         if index >= 2:
-            for i in removed_1:
-                if r % 2 == 0:
+            for r in removed_1:
+                if r % 3 != 2:
                     continue
-                r = i
                 for p in range(0, int(x_max / r) + 1):
-                    possible_z = (p * r - 1) / 3
-                    if possible_z.is_integer() and possible_z > 0:
-                        for power in range(0, int(np.log2( x_max / possible_z)) + 1):
+                    if p % r == 0 or r % p == 0:
+                        continue
+                    possible_z = ((2**p) * r - 1) / 3
+                    if possible_z.is_integer() and possible_z > 0 and possible_z % 2 == 1:
+                        for power in range(0, int(2 *np.log2( x_max)) + 1):
                             v = int(possible_z * 2 ** power)
                             if v in result:
                                 result.remove(v)
                                 removed_2.append(v)
-                                print(f"Removed 2: {v}")
+                                # print(f"Removed 2: {v}")
+                                if v == 23:
+                                    print(f"v: {v}")
+                                    print(f"possible_z: {possible_z}")
+                                    print(f"power: {power}")
+                                    print(f"p: {p}")
+                                    print(f"r: {r}")
+                                    
 
-        removed_d = [[] for _ in range(max(0, index - 1))]
+        print(f"removed_2: {removed_2}")
+        removed_d = [[] for _ in range(max(0, index))]
         if index >= 3:
-            for f in range(0, index - 1):
+            for f in range(0, index - 2):
 
                 d = f + 3
-                prevs = removed_d[f] if f > 0 else removed_1
+                prevs = removed_d[f - 1] if f > 0 else removed_2
+                print(f"prevs for d={d}: {prevs}")
                 for prev in prevs:
                     u = Monzo.from_int(prev).get_index(0)
-                    w = Monzo.from_int((prev / (2**u)*3+1)).get_index(0)
-                    r = 3 **(d-1) * prev / (2**w)+3**(d-3)+2**u
+                    w = Monzo.from_int((prev / (2**u))*3+1).get_index(0)
+                    r = 3 **(d-2) * (prev / (2**u))+3**(d-3)+ 2**w
 
-                    if r % 3 != 1:
-                        continue
-                        
-                    print(f"r: {r}")
+
+                    # this gives 2^k * 3?
+
+                    r = ((r/3) - 1) / 3
+
+                    print(f"d: {d}")
                     print(f"prev: {prev}")
                     print(f"u: {u}")
-                    for pp in range(0, int(np.log2( x_max )) + 1):# toimprove
-                        print(f"pp: {pp}")
-                        x_mod_r = ( -2 ** u-3**(d-2)) * (3.0 **(-d)) * (2**pp)
-                        print(f"x_mod_r: {x_mod_r}")
-                        if x_mod_r.is_integer():
-                            for z in range(1, int(x_max / abs(x_mod_r)) + 1):
-                                # print(f"z: {z}")
-                                v = int(x_mod_r - r*z)
+                    print(f"w: {w}")
+                    print(f"r: {r}")
+
+                    if r % 3 != 2 or prev % 3 == 0:
+                        continue
+
+                    x_mod_r = (1/3) * (prev - 1)
+                    # print(f"x_mod_r: {x_mod_r}")
+                    if x_mod_r.is_integer() and x_mod_r % 2 == 1:
+                        for z in range(0, int(x_max / abs(x_mod_r)) + 1):
+                            # print(f"z: {z}")
+                            v = int(x_mod_r - r*z)
+
+                            # 27 * 17 + 3 + 2^2 = 
+                            if (3**(d-1) * Monzo.from_int(v).with_index(0,0).to_int() +3**(d-2) + 2**u) % r == 0:
                                 # print(f"v: {v}")
                                 if v in result:
                                     result.remove(v)
