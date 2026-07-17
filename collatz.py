@@ -116,6 +116,20 @@ def predecessors_of(m: int, count: int):
 
         return to_return
 
+def get_monzo_desc(monzo: Monzo):
+    mod_coords_str = (
+            "[" + ", ".join(str(j) for j in monzo.get_modular_coordinates()) + "]"
+    )
+    if len(mod_coords_str) > 50:
+        mod_coords_str = mod_coords_str[:25] + "..." + mod_coords_str[-25:]
+
+    coords_str = "‹" + ", ".join([str(c) for c in monzo.get_coordinates()]) + "›"
+
+    if len(coords_str) > 50:
+        coords_str = coords_str[:25] + "..." + coords_str[-25:]
+
+    return f"‖m‖²: {monzo.square_norm()}\n|m_P|: {len(monzo)}\nm_P(+): {pos_mod_coords_to_string(monzo)}\nm_P(-): {mod_coords_str}\nm:{coords_str}\nm_Z: {monzo.to_int()}"
+
 def reverse_collatz(sink: int, width: int, depth: int):
     if show_odd_nodes and sink % 3 == 0:
         source_nodes.append(sink)
@@ -136,9 +150,9 @@ def reverse_collatz(sink: int, width: int, depth: int):
 def graph():
     t = time.time()
 
-    reverse_collatz(4, 12, 4)
+    # reverse_collatz(4, 12, 4)
 
-    do_collatz(170)
+    do_collatz(27)
 
     print( f"Collatz completed, size of graph: {len(collatz_nodes) + len(predecessor_nodes)} nodes, {len(collatz_edges)} edges")
 
@@ -190,19 +204,7 @@ def graph():
             return str(nodes[i])
 
         monzo = Monzo.from_int(nodes[i])
-        mod_coords_str = (
-            "[" + ", ".join(str(j) for j in monzo.get_modular_coordinates()) + "]"
-        )
-        if len(mod_coords_str) > 50:
-            mod_coords_str = mod_coords_str[:25] + "..." + mod_coords_str[-25:]
-
-        coords_str = "‹" + ", ".join([str(c) for c in monzo.get_coordinates()]) + "›"
-
-        if len(coords_str) > 50:
-            coords_str = coords_str[:25] + "..." + coords_str[-25:]
-
-        return f"‖m‖²: {monzo.square_norm()}\n|m_P|: {len(monzo)}\nm_P(+): {pos_mod_coords_to_string(monzo)}\nm_P(-): {mod_coords_str}\nm:{coords_str}\nm_Z: {monzo.to_int()}"
-
+        return get_monzo_desc(monzo)
 
     print(f"Pre-graph took ({time.time() - t}s)")
 
@@ -211,29 +213,27 @@ def graph():
 
 def filter():
     def filter_fn(index, x_min, x_max):
+        removed_2 = set()
+        removed_1 = set()
+        removed_0 = set()
         x_min = max(1, x_min)
-        result = [i for i in range(int(x_min), int(x_max) + 1)]
+        sweep_scale = max(index // 2, 1)
+        largest_power = int(np.log2(x_max))
+        result = set(i for i in range(int(x_min), int(x_max) + 1))
 
-        removed_0 = []
         if index >= 0:
-            for r in range(1, int(np.log2(x_max)) + 1):
-                result.remove(2 ** r)
-                removed_0.append(2 ** r)
-                # print(f"Removed 0: {2 ** i}")
+            for r in range(1, largest_power + index):
+                result.discard(2 ** r)
+                removed_0.add(2 ** r)
 
-        removed_1 = []
         if index >= 1:
             for r in removed_0:
                 r = (r - 1) / 3
                 if r.is_integer():
-                    for l in range(0, int(2* np.log2( x_max)) + 1):
+                    for l in range(0, (int(np.log2(x_max / r)) + index)):
                         v = int(r * 2 ** l)
-                        if v in result:
-                            result.remove(v)
-                            removed_1.append(v)
-                            # print(f"Removed 1: {v}")
-
-        removed_2 = []
+                        result.discard(v)
+                        removed_1.add(v)
 
         if index >= 2:
             for r in removed_1:
@@ -244,64 +244,55 @@ def filter():
                         continue
                     possible_z = ((2**p) * r - 1) / 3
                     if possible_z.is_integer() and possible_z > 0 and possible_z % 2 == 1:
-                        for power in range(0, int(2 *np.log2( x_max)) + 1):
+                        for power in range(0, int(np.log2(x_max / possible_z)) + index):
                             v = int(possible_z * 2 ** power)
-                            if v in result:
-                                result.remove(v)
-                                removed_2.append(v)
-                                # print(f"Removed 2: {v}")
-                                if v == 23:
-                                    print(f"v: {v}")
-                                    print(f"possible_z: {possible_z}")
-                                    print(f"power: {power}")
-                                    print(f"p: {p}")
-                                    print(f"r: {r}")
-                                    
+                            result.discard(v)
+                            removed_2.add(v)
+                            # print(f"Eliminated 2: {v}")
 
-        print(f"removed_2: {removed_2}")
-        removed_d = [[] for _ in range(max(0, index))]
+        # print(f"removed_2: {removed_2}")
+        removed_d = [set() for _ in range(max(0, index))]
         if index >= 3:
             for f in range(0, index - 2):
 
                 d = f + 3
                 prevs = removed_d[f - 1] if f > 0 else removed_2
-                print(f"prevs for d={d}: {prevs}")
+                # print(f"prevs for d={d}: {prevs}")
                 for prev in prevs:
-                    u = Monzo.from_int(prev).get_index(0)
-                    w = Monzo.from_int((prev / (2**u))*3+1).get_index(0)
-                    r = 3 **(d-2) * (prev / (2**u))+3**(d-3)+ 2**w
-
-
-                    # this gives 2^k * 3?
-
-                    r = ((r/3) - 1) / 3
-
-                    print(f"d: {d}")
-                    print(f"prev: {prev}")
-                    print(f"u: {u}")
-                    print(f"w: {w}")
-                    print(f"r: {r}")
-
-                    if r % 3 != 2 or prev % 3 == 0:
+                    if prev > Monzo.get_biggest_loaded_prime():
                         continue
+                    r = prev
+                    for _ in range(d-2):
+                        r_2_coord = Monzo.from_int(r).get_index(0)
+                        prev_projected = r / (2**r_2_coord)
+                        prev_prev = prev_projected * 3 + 1
+                        w = Monzo.from_int(prev_prev).get_index(0)
+                        r = prev_prev / (2**w)
 
-                    x_mod_r = (1/3) * (prev - 1)
-                    # print(f"x_mod_r: {x_mod_r}")
+                    # print(f"d: {d}")
+                    # print(f"prev: {prev}")
+                    # print(f"w: {w}")
+                    # print(f"r: {r}")
+                    x_mod_r = (prev - 1) / 3
+
                     if x_mod_r.is_integer() and x_mod_r % 2 == 1:
-                        for z in range(0, int(x_max / abs(x_mod_r)) + 1):
+                        for p in range(0, (int(np.log2(x_max / x_mod_r)) + index)):
                             # print(f"z: {z}")
-                            v = int(x_mod_r - r*z)
+                            v = int(x_mod_r * 2**p)
 
-                            # 27 * 17 + 3 + 2^2 = 
-                            if (3**(d-1) * Monzo.from_int(v).with_index(0,0).to_int() +3**(d-2) + 2**u) % r == 0:
-                                # print(f"v: {v}")
-                                if v in result:
-                                    result.remove(v)
-                                    removed_d[f].append(v)
-                                    print(f"Removed {d}: {v}")
+                            # print(f"v: {v}")
+                            # 3^(4) * 11 + 3^2 + 2^1 = 2
+                            # 3^(3) * 17 + 3^1 + 2^2 = 1
+                            result.discard(v)
+                            removed_d[f].add(v)
+                            # print(f"Eliminated {d}: {v}")
 
-        return np.column_stack((result, np.zeros(len(result))))
+        return np.column_stack((list(result), np.zeros(len(result))))
 
-    draw_collatz_filter(filter_fn)
+    def hover_fn(i):
+        return get_monzo_desc(Monzo.from_int(i))
 
+    draw_collatz_filter(filter_fn, hover_fn(i))
+
+# graph()
 filter()

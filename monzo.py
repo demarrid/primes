@@ -228,6 +228,10 @@ class Monzo:
         return m
 
     @classmethod
+    def get_biggest_loaded_prime(cls):
+        return PRIMES[-1]
+
+    @classmethod
     def from_prime_of_index(cls, i):
         m = cls([0] * (i) + [1], PRIMES[i])
         return m
