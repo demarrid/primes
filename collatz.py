@@ -1,5 +1,5 @@
 from vispy.color import ColorArray
-from monzo import Monzo
+from monzo import Monzo, color_sequence
 import networkx as nx
 from visualization import draw_collatz_filter, draw_collatz_graph
 import numpy as np
@@ -15,6 +15,13 @@ start_nodes = []
 collatz_edges = []
 predecessor_nodes = []
 source_nodes = []
+
+odd_teal = ColorArray("#6ca6d9").rgba
+evil_sable = ColorArray("#666666").rgba
+source = ColorArray("#edb193").rgba
+pure_source = ColorArray("#FFFFFF").rgba
+green_goblin = ColorArray("#1ced1c").rgba
+orange_obviant = ColorArray("#DB782A").rgba
 
 def improvement(n, nxt):
     n = 3 * n + 1.0
@@ -175,12 +182,7 @@ def graph():
 
     face = np.full((len(nodes), 4), 0.5)
 
-    odd_teal = ColorArray("#6ca6d9").rgba
-    evil_sable = ColorArray("#666666").rgba
-    source = ColorArray("#edb193").rgba
-    pure_source = ColorArray("#FFFFFF").rgba
-    green_goblin = ColorArray("#1ced1c").rgba
-    orange_obviant = ColorArray("#DB782A").rgba
+
 
     print(f"Graph organization took ({time.time() - t}s)")
 
@@ -198,7 +200,6 @@ def graph():
         elif n in collatz_nodes:
             face[i] = odd_teal if n % 3 == 1 else orange_obviant
 
-
     def label_fn(i, data):
         if nodes[i] > Monzo.get_prime_of_index(-1):
             return str(nodes[i])
@@ -211,19 +212,28 @@ def graph():
     draw_collatz_graph(collatz_edges, xy, face, index, label_fn=label_fn)
     app.run()
 
+def project_above_p2(int):
+    return Monzo.from_int(int).with_index(0,0).to_int()
+
 def filter():
     def filter_fn(index, x_min, x_max):
+        low_opacity_black = ColorArray((0,0,0), alpha=0.001).rgba
         removed_2 = set()
         removed_1 = set()
         removed_0 = set()
         x_min = max(1, x_min)
-        largest_power = int(np.log2(x_max))
-        result = set(i for i in range(int(x_min), int(x_max) + 1))
+        largest_power = int(np.log2(x_max)) + 1
+        original = list(i for i in range(int(x_min), int(x_max) + 1))
+        result = set(original)
+        face = np.full((len(result), 4), low_opacity_black)
 
         if index >= 0:
             for r in range(1, largest_power + index):
-                result.discard(2 ** r)
-                removed_0.add(2 ** r)
+                v = 2 ** r
+                result.discard(v)
+                removed_0.add(v)
+                if v in result:
+                    face[original.index(v)] = source
 
             print("Removed 0:\n", [v for v in removed_0 if x_min <= v <= x_max])
 
@@ -233,22 +243,34 @@ def filter():
                 if r.is_integer():
                     for ratio in range(0, (int(np.log2(x_max / r)) + index)):
                         v = int(r * 2 ** ratio)
+                        if v in removed_0:
+                            continue
+                        if v in result:
+                            face[original.index(v)] = orange_obviant
                         result.discard(v)
                         removed_1.add(v)
 
             print("Removed 1:\n", [v for v in removed_1 if x_min <= v <= x_max])
+
+        r_list = sorted([i for i in removed_1 if i % 2 == 1 and i > 1])
+
+        r_to_color = {r: ColorArray(color_sequence[i % len(color_sequence)]).rgba for i,r in enumerate(r_list)}
 
         if index >= 2:
             for r in removed_1:
                 if r % 3 != 2:
                     continue
                 for p in range(0, int(x_max / r) + 1):
-                    if p % r == 0 or r % p == 0:
+                    if p > 1 and (p % r == 0 or r % p == 0):
                         continue
                     possible_z = ((2**p) * r - 1) / 3
                     if possible_z.is_integer() and possible_z > 0 and possible_z % 2 == 1:
                         for power in range(0, int(np.log2(x_max / possible_z)) + index):
                             v = int(possible_z * 2 ** power)
+                            if v in removed_1:
+                                continue
+                            if v in result:
+                                face[original.index(v)] = r_to_color[project_above_p2(r)]
                             result.discard(v)
                             removed_2.add(v)
 
@@ -260,7 +282,7 @@ def filter():
 
                 d = f + 3
                 prevs = removed_d[f - 1] if f > 0 else removed_2
-                for prev in prevs:
+                for prev in sorted(prevs):
                     if prev > Monzo.get_biggest_loaded_prime():
                         continue
                     r = prev
@@ -271,18 +293,25 @@ def filter():
                         w = Monzo.from_int(prev_prev).get_index(0)
                         r = prev_prev / (2**w)
 
+
                     x_mod_r = (prev - 1) / 3
 
                     if x_mod_r.is_integer() and x_mod_r % 2 == 1:
                         for p in range(0, (int(np.log2(x_max / x_mod_r)) + index)):
                             v = int(x_mod_r * 2**p)
 
+                            if v in prevs:
+                                continue
+
+                            if v in result and np.all(face[original.index(v)] == low_opacity_black):
+                                face[original.index(v)] = r_to_color[project_above_p2(r)]
+
                             result.discard(v)
                             removed_d[f].add(v)
                 
                 print(f"Removed {d}:\n", [v for v in removed_d[f] if x_min <= v <= x_max])
 
-        return np.column_stack((list(result), np.zeros(len(result))))
+        return np.column_stack((list(original), np.zeros(len(original)))), face
 
     def hover_fn(i, data):
         n = int(data[i, 0])

@@ -305,10 +305,10 @@ def draw_collatz_graph(edges, pos, face, index, label_fn=None):
     return canvas 
 
 class NumberLineWindow(QWidget):
-    def __init__(self, calculate, hover_fn=None):
+    def __init__(self, filter_fn, hover_fn=None):
         super().__init__()
         self.value = 1
-        self.calculate = calculate
+        self.filter = filter_fn
         self.canvas = scene.SceneCanvas(keys="interactive", bgcolor="white")
 
         grid = self.canvas.central_widget.add_grid()
@@ -324,6 +324,7 @@ class NumberLineWindow(QWidget):
             tick_font_size=10,
         )
         x_axis.height_max = 50
+        x_axis.order = -10
         grid.add_widget(x_axis, row=1, col=1)
         x_axis.link_view(self.view)
 
@@ -375,7 +376,7 @@ class NumberLineWindow(QWidget):
         QTimer.singleShot(0, self.initialize_view)
 
     def initialize_view(self):
-        self.view.camera.rect = (0, -2, 100, 4)
+        self.view.camera.rect = (0, -2, 512, 4)
         self.refresh_points()
 
     def change_value(self, amount):
@@ -385,17 +386,15 @@ class NumberLineWindow(QWidget):
     def refresh_points(self):
         rect = self.view.camera.rect
         x_min, x_max = rect.left, rect.right
-        positions = self.calculate(self.value, x_min, x_max) if self.calculate is not None else np.zeros((0, 2))
+        if self.filter is not None:
+            positions, face = self.filter(self.value, x_min, x_max)
+        else:
+            positions = np.zeros((0, 2))
+            face = "#e63946"
         self.marker_positions = positions
-        self.markers.set_data(positions, face_color="#e63946", edge_color="black", size=12)
+        self.markers.set_data(positions, face_color=face, edge_color="#000000", edge_width=0.1, size=12)
         self.number_line.set_data(
             pos=np.array([[x_min, 0], [x_max, 0]], dtype=float)
-        )
-        self.markers.set_data(
-            positions,
-            face_color="#e63946",
-            edge_color="black",
-            size=12,
         )
         self.label.setText(f"value = {self.value}")
         if hasattr(self, "refresh_px"):
@@ -437,6 +436,6 @@ def draw_goldbach_graph(edges, pos, face, index, label_fn=None):
 
     view.camera.set_range()
 
-    refresh_px = attach_hover(canvas, view, markers, pos, size=12, label_fn=label_fn)
+    attach_hover(canvas, view, markers, pos, size=12, label_fn=label_fn)
 
     return canvas 
