@@ -397,7 +397,7 @@ def some_riemann_zeros():
     ]
 
 def pos_mod_coords_to_string(m: Monzo):
-    m = "[" + ", ".join(str(k) for k in m.get_positive_modular_coordinates()) + "]"
+    m = "[" + ", ".join(str(k) for k in m.get_positive_extended_modular_coordinates()) + "]"
     if len(m) > 50:
         m = m[:25] + "..." + m[-25:]
 

@@ -118,7 +118,7 @@ def predecessors_of(m: int, count: int):
 
 def get_monzo_desc(monzo: Monzo):
     mod_coords_str = (
-            "[" + ", ".join(str(j) for j in monzo.get_modular_coordinates()) + "]"
+            "[" + ", ".join(str(j) for j in monzo.get_extended_modular_coordinates()) + "]"
     )
     if len(mod_coords_str) > 50:
         mod_coords_str = mod_coords_str[:25] + "..." + mod_coords_str[-25:]
@@ -199,7 +199,7 @@ def graph():
             face[i] = odd_teal if n % 3 == 1 else orange_obviant
 
 
-    def label_fn(i):
+    def label_fn(i, data):
         if nodes[i] > Monzo.get_prime_of_index(-1):
             return str(nodes[i])
 
@@ -217,7 +217,6 @@ def filter():
         removed_1 = set()
         removed_0 = set()
         x_min = max(1, x_min)
-        sweep_scale = max(index // 2, 1)
         largest_power = int(np.log2(x_max))
         result = set(i for i in range(int(x_min), int(x_max) + 1))
 
@@ -226,14 +225,18 @@ def filter():
                 result.discard(2 ** r)
                 removed_0.add(2 ** r)
 
+            print("Removed 0:\n", [v for v in removed_0 if x_min <= v <= x_max])
+
         if index >= 1:
             for r in removed_0:
                 r = (r - 1) / 3
                 if r.is_integer():
-                    for l in range(0, (int(np.log2(x_max / r)) + index)):
-                        v = int(r * 2 ** l)
+                    for ratio in range(0, (int(np.log2(x_max / r)) + index)):
+                        v = int(r * 2 ** ratio)
                         result.discard(v)
                         removed_1.add(v)
+
+            print("Removed 1:\n", [v for v in removed_1 if x_min <= v <= x_max])
 
         if index >= 2:
             for r in removed_1:
@@ -248,16 +251,15 @@ def filter():
                             v = int(possible_z * 2 ** power)
                             result.discard(v)
                             removed_2.add(v)
-                            # print(f"Eliminated 2: {v}")
 
-        # print(f"removed_2: {removed_2}")
+            print("Removed 2:\n", [v for v in removed_2 if x_min <= v <= x_max])
+
         removed_d = [set() for _ in range(max(0, index))]
         if index >= 3:
             for f in range(0, index - 2):
 
                 d = f + 3
                 prevs = removed_d[f - 1] if f > 0 else removed_2
-                # print(f"prevs for d={d}: {prevs}")
                 for prev in prevs:
                     if prev > Monzo.get_biggest_loaded_prime():
                         continue
@@ -269,30 +271,26 @@ def filter():
                         w = Monzo.from_int(prev_prev).get_index(0)
                         r = prev_prev / (2**w)
 
-                    # print(f"d: {d}")
-                    # print(f"prev: {prev}")
-                    # print(f"w: {w}")
-                    # print(f"r: {r}")
                     x_mod_r = (prev - 1) / 3
 
                     if x_mod_r.is_integer() and x_mod_r % 2 == 1:
                         for p in range(0, (int(np.log2(x_max / x_mod_r)) + index)):
-                            # print(f"z: {z}")
                             v = int(x_mod_r * 2**p)
 
-                            # print(f"v: {v}")
-                            # 3^(4) * 11 + 3^2 + 2^1 = 2
-                            # 3^(3) * 17 + 3^1 + 2^2 = 1
                             result.discard(v)
                             removed_d[f].add(v)
-                            # print(f"Eliminated {d}: {v}")
+                
+                print(f"Removed {d}:\n", [v for v in removed_d[f] if x_min <= v <= x_max])
 
         return np.column_stack((list(result), np.zeros(len(result))))
 
-    def hover_fn(i):
-        return get_monzo_desc(Monzo.from_int(i))
+    def hover_fn(i, data):
+        n = int(data[i, 0])
+        if n > Monzo.get_prime_of_index(-1):
+            return str(n)
+        return get_monzo_desc(Monzo.from_int(n))
 
-    draw_collatz_filter(filter_fn, hover_fn(i))
+    draw_collatz_filter(filter_fn, hover_fn)
 
 # graph()
 filter()

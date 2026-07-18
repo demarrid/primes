@@ -33,7 +33,7 @@ class TrackpadCamera(scene.PanZoomCamera):
     
 def attach_hover(canvas, view, markers, pos, size=12, label_fn=None):
     if label_fn is None:
-        def label_fn(i):
+        def label_fn(i, data):
             return f"({pos[i, 0]:g}, {pos[i, 1]:g})"
 
     font_size = 12
@@ -68,9 +68,19 @@ def attach_hover(canvas, view, markers, pos, size=12, label_fn=None):
 
     px_cache = {"pts": None}
 
+    def _marker_positions(markers, pos):
+        data = getattr(markers, "_data", None)
+        if data is not None and "a_position" in data.dtype.names:
+            return np.asarray(data["a_position"])[:, :2]
+        return np.asarray(pos)
+
     def refresh_px():
+        current = _marker_positions(markers, pos)
+        if current is None or len(current) == 0:
+            px_cache["pts"] = None
+            return
         inv = markers.get_transform("visual", "canvas")
-        px_cache["pts"] = inv.map(pos)[:, :2]
+        px_cache["pts"] = inv.map(current)[:, :2]
 
     @canvas.events.mouse_move.connect
     def on_mouse_move(event):
@@ -78,26 +88,29 @@ def attach_hover(canvas, view, markers, pos, size=12, label_fn=None):
         if px_all is None:
             return
         d = np.linalg.norm(px_all - np.array(event.pos), axis=1)
+        current = _marker_positions(markers, pos)
         i = int(np.argmin(d))
         if d[i] < max(size, 12):
-            hover_text.text = label_fn(i)
-            hover_text.pos = event.pos + np.array([10, -10])
-            label = label_fn(i)
+            label = label_fn(i, current)
             hover_text.text = label
             lines = label.split("\n")
             pad_x, pad_y = 16, 14
-            char_w = font_size * 0.74  
+            char_w = font_size * 0.74
             line_h = font_size * line_height * 1.4
             w = max(len(L) for L in lines) * char_w + pad_x
             h = len(lines) * line_h + pad_y
+
+            tl = np.asarray(event.pos, dtype=float) + np.array([10, 10])
+
             hover_bg.width = w
             hover_bg.height = h
-            hover_bg.center = event.pos + np.array([10 + w/2, -1.25 * line_h + h/2])
-            hover_text.pos = event.pos + np.array([10 + pad_x/2, -10 - pad_y/2])
+            hover_bg.center = tl + np.array([w / 2, h/2 + 2])
+            hover_text.pos = tl + np.array([pad_x / 2, pad_y / 2])
             hover_bg.visible = True
         else:
             hover_text.text = ""
             hover_bg.visible = False
+        canvas.update()
 
     @canvas.events.key_press.connect
     def on_key_press(event):
@@ -118,6 +131,10 @@ def attach_hover(canvas, view, markers, pos, size=12, label_fn=None):
     view.camera.on_change = lambda: (old_on_change() if old_on_change else None, refresh_px())
     canvas.events.resize.connect(lambda e: refresh_px())
     canvas.events.draw.connect(lambda e: refresh_px())
+
+    refresh_px()
+
+    return refresh_px
 
 def scatter_view(df, x, y, value_col=None, continuous=False, size=9, title="scatter", bgcolor="white", line_segments=False):
     pos = np.column_stack([df[x].to_numpy(float), df[y].to_numpy(float)])
@@ -182,10 +199,8 @@ def scatter_view(df, x, y, value_col=None, continuous=False, size=9, title="scat
     yaxis.link_view(view)
          
     markers = scene.visuals.Markers()
-    markers.set_data(pos, face_color=face_color, size=size,
-                     edge_width=0, edge_color=None, symbol='square')
-    markers.set_gl_state(depth_test=False, blend=True,
-                         blend_func=("src_alpha", "one_minus_src_alpha"))
+    markers.set_data(pos, face_color=face_color, size=size, edge_width=0, edge_color=None, symbol='square')
+    markers.set_gl_state(depth_test=False, blend=True, blend_func=("src_alpha", "one_minus_src_alpha"))
 
     view.add(markers)
     view.camera.set_range()
@@ -255,7 +270,6 @@ def scatter_view(df, x, y, value_col=None, continuous=False, size=9, title="scat
     return canvas
 
 def draw_collatz_graph(edges, pos, face, index, label_fn=None):
-
     if len(edges[0]) == 2:
         array = [[pos[index[u]], pos[index[v]]] for u, v in edges]
     else:
@@ -291,7 +305,7 @@ def draw_collatz_graph(edges, pos, face, index, label_fn=None):
     return canvas 
 
 class NumberLineWindow(QWidget):
-    def __init__(self, calculate):
+    def __init__(self, calculate, hover_fn=None):
         super().__init__()
         self.value = 1
         self.calculate = calculate
@@ -300,7 +314,7 @@ class NumberLineWindow(QWidget):
         grid = self.canvas.central_widget.add_grid()
 
         self.view = grid.add_view(row=0, col=1)
-        self.view.camera = scene.PanZoomCamera(aspect=None)
+        self.view.camera = TrackpadCamera(aspect=1)
 
         x_axis = scene.AxisWidget(
             orientation="bottom",
@@ -338,6 +352,17 @@ class NumberLineWindow(QWidget):
         controls.addWidget(decrease)
         controls.addWidget(self.label)
         controls.addWidget(increase)
+
+        self.marker_positions = np.zeros((0, 2))
+
+        self.refresh_points()
+        self.refresh_px = attach_hover(
+            self.canvas, self.view, self.markers,
+            self.marker_positions, 
+            size=12,
+            label_fn=hover_fn,
+        )
+
         layout = QVBoxLayout(self)
         layout.addLayout(controls)
         layout.addWidget(self.canvas.native)
@@ -360,7 +385,9 @@ class NumberLineWindow(QWidget):
     def refresh_points(self):
         rect = self.view.camera.rect
         x_min, x_max = rect.left, rect.right
-        positions = self.calculate(self.value, x_min, x_max) if self.calculate is not None else np.array([])
+        positions = self.calculate(self.value, x_min, x_max) if self.calculate is not None else np.zeros((0, 2))
+        self.marker_positions = positions
+        self.markers.set_data(positions, face_color="#e63946", edge_color="black", size=12)
         self.number_line.set_data(
             pos=np.array([[x_min, 0], [x_max, 0]], dtype=float)
         )
@@ -371,15 +398,12 @@ class NumberLineWindow(QWidget):
             size=12,
         )
         self.label.setText(f"value = {self.value}")
+        if hasattr(self, "refresh_px"):
+            self.refresh_px()
 
-
-def calculate_collatz_filter(value, x_min, x_max):
-
-    return np.column_stack()
-
-def draw_collatz_filter(calc_fn):
+def draw_collatz_filter(calc_fn, hover_fn=None):
     qt_app = QApplication.instance() or QApplication(sys.argv)
-    window = NumberLineWindow(calc_fn)
+    window = NumberLineWindow(calc_fn, hover_fn)
     window.resize(900, 300)
     window.show()
     sys.exit(qt_app.exec())
@@ -413,6 +437,6 @@ def draw_goldbach_graph(edges, pos, face, index, label_fn=None):
 
     view.camera.set_range()
 
-    attach_hover(canvas, view, markers, pos, size=12, label_fn=label_fn)
+    refresh_px = attach_hover(canvas, view, markers, pos, size=12, label_fn=label_fn)
 
     return canvas 

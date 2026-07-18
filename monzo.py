@@ -110,14 +110,29 @@ class Monzo:
         return self.c
 
     def get_positive_modular_coordinates(self):
-        return [k % PRIMES[j] for j, k in enumerate(self.get_modular_coordinates())]
+        if len(self) == 0:
+            return [-1]
+        else:
+            if len(self) > max_partition_len *2:
+                return [(self.to_int() % PRIMES[i])  for i in range(max_partition_len)] + [(self.to_int() % PRIMES[i]) for i in range(len(self) - max_partition_len, len(self))]
+            else:
+                return [(self.to_int() % PRIMES[i]) for i in range(len(self))]
 
     def get_extended_modular_coordinates(self):
         mods = self.get_modular_coordinates().copy()
-        for i in range(len(mods), len(PRIMES)):
+        for i in range(len(self), len(PRIMES)):
             p = PRIMES[i]
             mods.append((self.to_int() % p) - p)
-            if p > self.to_int():
+            if p > self.to_int() or len(mods) > max_partition_len * 3:
+                break
+        return mods
+
+    def get_positive_extended_modular_coordinates(self):
+        mods = self.get_positive_modular_coordinates().copy()
+        for i in range(len(self), len(PRIMES)):
+            p = PRIMES[i]
+            mods.append((self.to_int() % p)  )
+            if p > self.to_int() or len(mods) > max_partition_len * 3:
                 break
         return mods
 

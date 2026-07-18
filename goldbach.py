@@ -84,7 +84,7 @@ vals = np.log1p(np.array(nodes, dtype=float))
 norm = (vals - vals.min()) / (np.ptp(vals) or 1)
 face = get_colormap("viridis").map(norm)
 
-def label_fn(i):
+def label_fn(i, data):
     monzo = Monzo.from_int(nodes[i])
     mod_coords_str = "[" + ", ".join(str(j) for j in monzo.get_modular_coordinates()) + "]"
     if len(mod_coords_str) > 50:
