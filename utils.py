@@ -1,8 +1,6 @@
 from monzo import PRIMES, Monzo, target_max_int
 import numpy as np
 import random
-import os
-import pandas as pd
 import mpmath as mp
 
 class Complex:
@@ -402,59 +400,6 @@ def pos_mod_coords_to_string(m: Monzo):
         m = m[:25] + "..." + m[-25:]
 
     return m
-# beware of clanker code below
-
-def load_or_build(path, build_fn, keep=True):
-    if os.path.exists(path):
-        return pd.read_csv(path)
-    df = build_fn()
-    df.to_csv(path, index=False)
-    return df if keep else None  # discard from memory when not needed
-
-def make_spf(N):
-    spf = np.arange(N + 1)
-    for i in range(2, int(N**0.5) + 1):
-        if spf[i] == i:
-            spf[i * i :: i] = np.minimum(spf[i * i :: i], i)
-    return spf
-
-def factor(m, spf):
-    """yield (prime, exponent) for m using the sieve."""
-    while m > 1:
-        p = int(spf[m])
-        e = 0
-        while m % p == 0:
-            m //= p
-            e += 1
-        yield p, e
-
-def build_grid_records(N, spf, prime_index, value_of=lambda n, exps: n):
-    """value_of maps (n, its exponent dict) -> the integer to factor for the grid."""
-    records = []
-    for n in range(2, int(N) + 1):
-        exps = dict(factor(n, spf))
-        target = value_of(n, exps)
-        if target < 2:
-            continue
-        for p, e in factor(target, spf):
-            records.append((n, prime_index[p], p, e))
-    cols = ["int", "prime_index", "prime", "exponent"]
-    return pd.DataFrame(records, columns=cols)
-
-def build_modular_coord_records(N, spf, prime_index):
-    records = []
-    for n in range(1, int(N) + 1):
-        max_i = 0
-        for i in range(len(PRIMES)):
-            if PRIMES[i] > n:
-                max_i = i - 1
-                break
-
-        for i in range(max_i + 1):
-            prime = PRIMES[i]
-            coord = n % prime
-            records.append((n, i, coord / float(prime)))
-    return pd.DataFrame(records, columns=["int", "prime_index", "coord"])
 
 def sigmoid(x):
     x *= 3

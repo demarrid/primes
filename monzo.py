@@ -2,7 +2,7 @@ from fractions import Fraction
 import math
 import glob
 
-target_max_int = 100_00_0
+target_max_int = 100_000
 max_partition_len = 25
 
 stored_primes = [int(k) for k in open("primes.txt","r").read().replace("\n", ",").split(",")]

@@ -5,8 +5,9 @@ from visualization import draw_collatz_filter, draw_collatz_graph
 import numpy as np
 from vispy import app
 import time
-
+from clanker_utils import expand_doublings
 from utils import pos_mod_coords_to_string
+import pandas as pd
 
 G = nx.DiGraph()
 
@@ -30,7 +31,7 @@ def improvement(n, nxt):
     nxt = np.log2(nxt) % 1
     return abs(nxt - n)
 
-show_odd_nodes = False
+show_odd_nodes = True
 
 
 def do_collatz(n):
@@ -157,9 +158,10 @@ def reverse_collatz(sink: int, width: int, depth: int):
 def graph():
     t = time.time()
 
-    # reverse_collatz(4, 12, 4)
-
-    do_collatz(27)
+    # reverse_collatz(1, 8, 4)
+    do_collatz(1875)
+    do_collatz(1874)
+    do_collatz(1895)
 
     print( f"Collatz completed, size of graph: {len(collatz_nodes) + len(predecessor_nodes)} nodes, {len(collatz_edges)} edges")
 
@@ -212,114 +214,374 @@ def graph():
     draw_collatz_graph(collatz_edges, xy, face, index, label_fn=label_fn)
     app.run()
 
-def project_above_p2(int):
-    return Monzo.from_int(int).with_index(0,0).to_int()
+p2_cache = {}
+
+above_cache = {}
+
+def project_above_p2(n):
+    n = int(n)
+    if n in above_cache:
+        return above_cache[n]
+    above_cache[n] = n >> get_p2_index(n)
+    return above_cache[n]
+
+def get_p2_index(n):
+    n = int(n)
+    if n in p2_cache:
+        return p2_cache[n]
+    original = n
+    if n <= 1:
+        p2_cache[original] = 0
+        return 0
+    i = 0
+    while n % 2 == 0:
+        n //= 2
+        i += 1
+    p2_cache[original] = i
+    return i
 
 def filter():
-    def filter_fn(index, x_min, x_max):
-        low_opacity_black = ColorArray((0,0,0), alpha=0.001).rgba
-        removed_2 = set()
-        removed_1 = set()
-        removed_0 = set()
-        x_min = max(1, x_min)
-        largest_power = int(np.log2(x_max)) + 1
-        original = list(i for i in range(int(x_min), int(x_max) + 1))
-        result = set(original)
-        face = np.full((len(result), 4), low_opacity_black)
+    CACHE_RANGE_OFFSET = 12
 
-        if index >= 0:
-            for r in range(1, largest_power + index):
-                v = 2 ** r
-                result.discard(v)
-                removed_0.add(v)
-                if v in result:
-                    face[original.index(v)] = source
+    remaining = set()
+    reported_clears = set()
+    cached_bounds = None
+    removed_levels = []
+    color_levels = []
+    r_to_color = {}
 
-            print("Removed 0:\n", [v for v in removed_0 if x_min <= v <= x_max])
+    low_opacity_black = ColorArray(
+        (0, 0, 0),
+        alpha=0.1,
+    ).rgba
 
-        if index >= 1:
-            for r in removed_0:
-                r = (r - 1) / 3
-                if r.is_integer():
-                    for ratio in range(0, (int(np.log2(x_max / r)) + index)):
-                        v = int(r * 2 ** ratio)
-                        if v in removed_0:
-                            continue
-                        if v in result:
-                            face[original.index(v)] = orange_obviant
-                        result.discard(v)
-                        removed_1.add(v)
+    def reset_cache(start, stop):
+        nonlocal cached_bounds
+        nonlocal removed_levels
+        nonlocal color_levels
+        nonlocal r_to_color
+        nonlocal remaining, reported_clears
 
-            print("Removed 1:\n", [v for v in removed_1 if x_min <= v <= x_max])
+        remaining = set(range(1, stop + 1))
+        reported_clears = set()
 
-        r_list = sorted([i for i in removed_1 if i % 2 == 1 and i > 1])
+        cached_bounds = (start, stop)
+        removed_levels = []
+        color_levels = []
+        r_to_color = {}
 
-        r_to_color = {r: ColorArray(color_sequence[i % len(color_sequence)]).rgba for i,r in enumerate(r_list)}
+    def color_for(r):
+        key = project_above_p2(int(r))
 
-        if index >= 2:
-            for r in removed_1:
+        if key not in r_to_color:
+            i = len(r_to_color)
+            r_to_color[key] = ColorArray(
+                color_sequence[i % len(color_sequence)]
+            ).rgba
+
+        return r_to_color[key]
+
+    def calculate_level(depth, stop):
+        nonlocal r_to_color
+
+        removed = set()
+        colors = {}
+
+        if depth == 0:
+            for exponent in range(
+                1,
+                stop.bit_length() + CACHE_RANGE_OFFSET,
+            ):
+                value = 1 << exponent
+                removed.add(value)
+                colors[value] = source
+
+            return removed, colors
+
+        previous = removed_levels[depth - 1]
+
+        if depth == 1:
+            bases = []
+
+            for value in previous:
+                numerator = value - 1
+
+                if numerator % 3 == 0:
+                    base = numerator // 3
+                    if base > 0:
+                        bases.append(base)
+
+            values, _ = expand_doublings(
+                bases,
+                stop,
+                range_offset=CACHE_RANGE_OFFSET,
+            )
+
+            for value in values:
+                value = int(value)
+
+                if value in previous:
+                    continue
+
+                removed.add(value)
+                colors.setdefault(value, orange_obviant)
+
+            odd_values = sorted(
+                value
+                for value in removed
+                if value > 1 and value % 2 == 1
+            )
+
+            r_to_color = {
+                value: ColorArray(
+                    color_sequence[i % len(color_sequence)]
+                ).rgba
+                for i, value in enumerate(odd_values)
+            }
+
+            return removed, colors
+
+        if depth == 2:
+            bases = []
+            source_values = []
+
+            for r in previous:
                 if r % 3 != 2:
                     continue
-                for p in range(0, int(x_max / r) + 1):
-                    if p > 1 and (p % r == 0 or r % p == 0):
+
+                max_p = int(
+                    np.log2((3 * stop + 1) / r)
+                )
+
+                for p in range(max_p + 1):
+                    if p > 1 and (
+                        p % r == 0 or r % p == 0
+                    ):
                         continue
-                    possible_z = ((2**p) * r - 1) / 3
-                    if possible_z.is_integer() and possible_z > 0 and possible_z % 2 == 1:
-                        for power in range(0, int(np.log2(x_max / possible_z)) + index):
-                            v = int(possible_z * 2 ** power)
-                            if v in removed_1:
-                                continue
-                            if v in result:
-                                face[original.index(v)] = r_to_color[project_above_p2(r)]
-                            result.discard(v)
-                            removed_2.add(v)
 
-            print("Removed 2:\n", [v for v in removed_2 if x_min <= v <= x_max])
+                    numerator = (1 << p) * r - 1
 
-        removed_d = [set() for _ in range(max(0, index))]
-        if index >= 3:
-            for f in range(0, index - 2):
-
-                d = f + 3
-                prevs = removed_d[f - 1] if f > 0 else removed_2
-                for prev in sorted(prevs):
-                    if prev > Monzo.get_biggest_loaded_prime():
+                    if numerator % 3 != 0:
                         continue
-                    r = prev
-                    for _ in range(d-2):
-                        r_2_coord = Monzo.from_int(r).get_index(0)
-                        prev_projected = r / (2**r_2_coord)
-                        prev_prev = prev_projected * 3 + 1
-                        w = Monzo.from_int(prev_prev).get_index(0)
-                        r = prev_prev / (2**w)
 
+                    base = numerator // 3
 
-                    x_mod_r = (prev - 1) / 3
+                    if base > 0 and base % 2 == 1:
+                        bases.append(base)
+                        source_values.append(r)
 
-                    if x_mod_r.is_integer() and x_mod_r % 2 == 1:
-                        for p in range(0, (int(np.log2(x_max / x_mod_r)) + index)):
-                            v = int(x_mod_r * 2**p)
+            values, source_indices = expand_doublings(
+                bases,
+                stop,
+                range_offset=CACHE_RANGE_OFFSET,
+            )
 
-                            if v in prevs:
-                                continue
+            for value, source_index in zip(
+                values,
+                source_indices,
+            ):
+                value = int(value)
+                r = source_values[int(source_index)]
 
-                            if v in result and np.all(face[original.index(v)] == low_opacity_black):
-                                face[original.index(v)] = r_to_color[project_above_p2(r)]
+                if value in previous:
+                    continue
 
-                            result.discard(v)
-                            removed_d[f].add(v)
-                
-                print(f"Removed {d}:\n", [v for v in removed_d[f] if x_min <= v <= x_max])
+                removed.add(value)
+                colors.setdefault(value, color_for(r))
 
-        return np.column_stack((list(original), np.zeros(len(original)))), face
+            return removed, colors
+
+        bases = []
+        source_values = []
+
+        for prev in sorted(previous):
+            max =1e10
+            if prev > max:
+                print(f"Skipping {prev} because it exceeds the max value {max}")
+                continue
+
+            r = prev
+
+            for _ in range(depth - 2):
+                r_2_coord = get_p2_index(r)
+                projected = r // (1 << r_2_coord)
+                next_value = projected * 3 + 1
+
+                next_2_coord = get_p2_index(next_value)
+            
+
+                r = next_value // (1 << next_2_coord)
+
+            numerator = prev - 1
+
+            if numerator % 3 != 0:
+                continue
+
+            base = numerator // 3
+
+            if base > 0 and base % 2 == 1:
+                bases.append(base)
+                source_values.append(r)
+
+        values, source_indices = expand_doublings(
+            bases,
+            stop,
+            range_offset=CACHE_RANGE_OFFSET,
+        )
+
+        for value, source_index in zip(
+            values,
+            source_indices,
+        ):
+            value = int(value)
+            r = source_values[int(source_index)]
+
+            if value in previous:
+                continue
+
+            removed.add(value)
+            colors.setdefault(value, color_for(r))
+
+        return removed, colors
+
+    def render_levels(index, start, stop):
+        original = np.arange(
+            start,
+            stop + 1,
+            dtype=np.int64,
+        )
+
+        face = np.full(
+            (len(original), 4),
+            low_opacity_black,
+        )
+
+        already_colored = set()
+
+        for colors in color_levels[:index + 1]:
+            for value, color in colors.items():
+                if (
+                    start <= value <= stop
+                    and value not in already_colored
+                ):
+                    face[value - start] = color
+                    already_colored.add(value)
+
+        positions = np.column_stack(
+            (
+                original,
+                np.zeros(len(original)),
+            )
+        )
+
+        return positions, face
+
+    def filter_fn(index, x_min, x_max):
+        start = max(1, int(x_min))
+        stop = max(start, int(x_max))
+        bounds = (start, stop)
+
+        if bounds != cached_bounds:
+            reset_cache(start, stop)
+
+        while len(removed_levels) <= index:
+            depth = len(removed_levels)
+
+            removed, colors = calculate_level(
+                depth,
+                stop,
+            )
+
+            removed_levels.append(removed)
+            color_levels.append(colors)
+
+            visible_removed = {
+                value
+                for value in removed
+                if 1 <= value <= stop
+            }
+
+            remaining.difference_update(visible_removed)
+
+            if depth >= 3 and visible_removed:
+                min_removed = min(visible_removed)
+                min_remaining = min(
+                    remaining,
+                    default=stop + 1,
+                )
+
+                for k in range(
+                    1,
+                    13,
+                ):
+                    upper_bound = 1 << k
+
+                    if (
+                        min_removed <= upper_bound
+                        and min_remaining >= upper_bound
+                        and upper_bound not in reported_clears
+                    ):
+                        print(
+                            f"Cleared (0,{upper_bound}) "
+                            f"at depth {depth}"
+                        )
+                        reported_clears.add(upper_bound)
+
+        return render_levels(
+            index,
+            start,
+            stop,
+        )
 
     def hover_fn(i, data):
         n = int(data[i, 0])
-        if n > Monzo.get_prime_of_index(-1):
+
+        if n > Monzo.get_biggest_loaded_prime():
             return str(n)
+
         return get_monzo_desc(Monzo.from_int(n))
 
     draw_collatz_filter(filter_fn, hover_fn)
 
-# graph()
-filter()
+distance_cache = {}
+
+def direct_compute_distance(i):
+    i = project_above_p2(i)
+    if i <= 1:
+        return 0
+    if i in distance_cache:
+        return distance_cache[i]
+
+    nxt = project_above_p2(i * 3 + 1)
+    result = 1 + direct_compute_distance(nxt)
+    distance_cache[i] = result
+    return result
+
+max_n = 2 ** 13 + 1
+
+for i in range(1, max_n):
+    direct_compute_distance(i)
+
+distance_cache_df = pd.DataFrame(list(distance_cache.items()), columns=["int", "distance"])
+
+distance_cache_df = distance_cache_df[distance_cache_df["int"] < max_n]
+
+distance_cache_df.to_csv("distance_cache.csv", index=False)
+
+# pts = distance_cache_df[["int", "distance"]].to_numpy(dtype=float)
+# hull = ConvexHull(pts)
+# verts = pts[hull.vertices]
+
+# upper = []
+# n = len(verts)
+# for i in range(n):
+#     a, b = verts[i], verts[(i + 1) % n]
+#     if a[0] != b[0] and (a[1] + b[1]) / 2 >= np.interp(
+#         (a[0] + b[0]) / 2,
+#         pts[np.argsort(pts[:, 0]), 0],
+#         pts[np.argsort(pts[:, 0]), 1],
+#     ):
+#         upper.extend([a, b])
+
+# envelope = pd.DataFrame(np.unique(upper, axis=0), columns=["int", "distance"])
+# envelope.to_csv("envelope.csv", index=False)

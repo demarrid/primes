@@ -7,7 +7,7 @@ from monzo import Monzo, color_sequence
 from utils import sigmoid
 import sys
 from PyQt6.QtCore import QTimer
-from PyQt6.QtWidgets import QApplication, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QApplication, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QSpinBox
 
 app.use_app("pyqt6")
 class TrackpadCamera(scene.PanZoomCamera):
@@ -344,16 +344,21 @@ class NumberLineWindow(QWidget):
             parent=self.view.scene,
         )
         self.markers = scene.visuals.Markers(parent=self.view.scene)
-        self.label = QLabel()
+        self.value_input = QSpinBox()
+        self.value_input.setMinimum(1)
+        self.value_input.setMaximum(999999)  
+        self.value_input.setValue(self.value)
+        self.value_input.valueChanged.connect(self.set_value)
+
         decrease = QPushButton("−")
         increase = QPushButton("+")
         decrease.clicked.connect(lambda: self.change_value(-1))
         increase.clicked.connect(lambda: self.change_value(1))
         controls = QHBoxLayout()
         controls.addWidget(decrease)
-        controls.addWidget(self.label)
+        controls.addWidget(QLabel("value ="))
+        controls.addWidget(self.value_input)
         controls.addWidget(increase)
-
         self.marker_positions = np.zeros((0, 2))
 
         self.refresh_points()
@@ -375,12 +380,19 @@ class NumberLineWindow(QWidget):
         )
         QTimer.singleShot(0, self.initialize_view)
 
-    def initialize_view(self):
-        self.view.camera.rect = (0, -2, 512, 4)
+    def set_value(self, value):
+        self.value = max(1, int(value))
+        if self.value_input.value() != self.value:
+            self.value_input.blockSignals(True)
+            self.value_input.setValue(self.value)
+            self.value_input.blockSignals(False)
         self.refresh_points()
 
     def change_value(self, amount):
-        self.value = max(1, self.value + amount)
+        self.set_value(self.value + amount)
+    
+    def initialize_view(self):
+        self.view.camera.rect = (0, -2, 1024 + 10, 4)
         self.refresh_points()
 
     def refresh_points(self):
@@ -396,7 +408,6 @@ class NumberLineWindow(QWidget):
         self.number_line.set_data(
             pos=np.array([[x_min, 0], [x_max, 0]], dtype=float)
         )
-        self.label.setText(f"value = {self.value}")
         if hasattr(self, "refresh_px"):
             self.refresh_px()
 

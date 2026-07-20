@@ -2,3 +2,5 @@ primelists/*
 *.pyc
 *.csv
 graphs/*
+.gitignore
+.cursor/*
