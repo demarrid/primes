@@ -247,6 +247,10 @@ class Monzo:
         return PRIMES[-1]
 
     @classmethod
+    def get_prime_index(cls, p):
+        return PRIMES.index(p)
+
+    @classmethod
     def from_prime_of_index(cls, i):
         m = cls([0] * (i) + [1], PRIMES[i])
         return m

@@ -19,20 +19,21 @@ source_nodes = []
 
 odd_teal = ColorArray("#6ca6d9").rgba
 evil_sable = ColorArray("#666666").rgba
+yellow_yup = ColorArray("#FFFF00").rgba
 source = ColorArray("#edb193").rgba
 pure_source = ColorArray("#FFFFFF").rgba
 green_goblin = ColorArray("#1ced1c").rgba
-orange_obviant = ColorArray("#DB782A").rgba
+green_gap = ColorArray("#029400").rgba
+blue_blorp = ColorArray("#0000FF").rgba
 
 def improvement(n, nxt):
-    n = 3 * n + 1.0
-    nxt = 3 * nxt + 1.0
-    n = np.log2(n) % 1
-    nxt = np.log2(nxt) % 1
-    return abs(nxt - n)
+    i = 0
+    while nxt % 2 == 0:
+        nxt //= 2
+        i += 1
+    return i
 
 show_odd_nodes = True
-
 
 def do_collatz(n):
     if n <= 0:
@@ -84,8 +85,12 @@ def do_odd_collatz(n):
         collatz_nodes.append(nxt)
         n = nxt
 
+evil = False
 
 def predecessors_of(m: int, count: int):
+    if evil:
+        count = 1
+
     to_return = []
 
     if show_odd_nodes:
@@ -98,7 +103,14 @@ def predecessors_of(m: int, count: int):
             source_nodes.append(m)
             return to_return
 
-        for j in range(1, count + 1):
+        if evil:
+            z = (m * 2 - 1)/3
+            if z.is_integer():
+                to_return.append(int(z))
+            else:
+                source_nodes.append(m)
+            return to_return
+        for j in range(0, count + 1):
             new_2_index = 2 * (j + 1) + k - 1
             value_with_new_2_index = m * (2**new_2_index)
             z = (value_with_new_2_index - 1) // 3
@@ -158,11 +170,6 @@ def reverse_collatz(sink: int, width: int, depth: int):
 def graph():
     t = time.time()
 
-    # reverse_collatz(1, 8, 4)
-    do_collatz(1875)
-    do_collatz(1874)
-    do_collatz(1895)
-
     print( f"Collatz completed, size of graph: {len(collatz_nodes) + len(predecessor_nodes)} nodes, {len(collatz_edges)} edges")
 
     print(f"Time taken: {time.time() - t}s")
@@ -174,8 +181,8 @@ def graph():
     G.graph["overlap_scaling"] = 2
     G.graph["ranksep"] = "2.0"
 
-    # pos = nx.nx_agraph.graphviz_layout(G, prog="dot")
-    pos = nx.nx_agraph.graphviz_layout(G.reverse(), prog="twopi", root=1)
+    pos = nx.nx_agraph.graphviz_layout(G, prog="dot")
+    # pos = nx.nx_agraph.graphviz_layout(G.reverse(), prog="twopi", root=1)
     # pos = nx.nx_agraph.graphviz_layout(G, prog="neato")
 
     nodes = list(G.nodes())
@@ -183,8 +190,6 @@ def graph():
     xy = np.array([pos[n] for n in nodes], dtype=float)
 
     face = np.full((len(nodes), 4), 0.5)
-
-
 
     print(f"Graph organization took ({time.time() - t}s)")
 
@@ -197,10 +202,21 @@ def graph():
                 face[i] = pure_source
         elif n in start_nodes:
             face[i] = evil_sable
-        elif n in predecessor_nodes:
-            face[i] = green_goblin
-        elif n in collatz_nodes:
-            face[i] = odd_teal if n % 3 == 1 else orange_obviant
+        elif n % 7 == 0:
+            face[i] = yellow_yup
+        else: 
+            p2 = get_p2_index(3*n+1)
+            if p2 == 1:
+                face[i] = green_gap
+            elif p2 == 2:
+                face[i] = blue_blorp
+            else:
+                max_p2 = 20
+                norm = p2 / max_p2
+                teal = np.array([0.0, 1.0, 1.0, 1.0])
+                orange = np.array([1.0, 0.5, 0.0, 1.0])
+                face[i] = teal * (1 - norm) + orange * norm
+
 
     def label_fn(i, data):
         if nodes[i] > Monzo.get_prime_of_index(-1):
@@ -324,7 +340,7 @@ def filter():
                     continue
 
                 removed.add(value)
-                colors.setdefault(value, orange_obviant)
+                colors.setdefault(value, green_gap)
 
             odd_values = sorted(
                 value
@@ -382,6 +398,7 @@ def filter():
             ):
                 value = int(value)
                 r = source_values[int(source_index)]
+                r=5
 
                 if value in previous:
                     continue
@@ -412,6 +429,8 @@ def filter():
 
                 r = next_value // (1 << next_2_coord)
 
+            r=5
+
             numerator = prev - 1
 
             if numerator % 3 != 0:
@@ -435,6 +454,7 @@ def filter():
         ):
             value = int(value)
             r = source_values[int(source_index)]
+            r=5
 
             if value in previous:
                 continue
@@ -557,31 +577,88 @@ def direct_compute_distance(i):
     distance_cache[i] = result
     return result
 
-max_n = 2 ** 13 + 1
+def make_cache():
+    max_n = 2 ** 13 + 1
 
-for i in range(1, max_n):
-    direct_compute_distance(i)
+    for i in range(1, max_n):
+        direct_compute_distance(i)
 
-distance_cache_df = pd.DataFrame(list(distance_cache.items()), columns=["int", "distance"])
+    distance_cache_df = pd.DataFrame(list(distance_cache.items()), columns=["int", "distance"])
 
-distance_cache_df = distance_cache_df[distance_cache_df["int"] < max_n]
+    distance_cache_df = distance_cache_df[distance_cache_df["int"] < max_n]
 
-distance_cache_df.to_csv("distance_cache.csv", index=False)
+    distance_cache_df.to_csv("distance_cache.csv", index=False)
 
-# pts = distance_cache_df[["int", "distance"]].to_numpy(dtype=float)
-# hull = ConvexHull(pts)
-# verts = pts[hull.vertices]
+    # pts = distance_cache_df[["int", "distance"]].to_numpy(dtype=float)
+    # hull = ConvexHull(pts)
+    # verts = pts[hull.vertices]
 
-# upper = []
-# n = len(verts)
-# for i in range(n):
-#     a, b = verts[i], verts[(i + 1) % n]
-#     if a[0] != b[0] and (a[1] + b[1]) / 2 >= np.interp(
-#         (a[0] + b[0]) / 2,
-#         pts[np.argsort(pts[:, 0]), 0],
-#         pts[np.argsort(pts[:, 0]), 1],
-#     ):
-#         upper.extend([a, b])
+    # upper = []
+    # n = len(verts)
+    # for i in range(n):
+    #     a, b = verts[i], verts[(i + 1) % n]
+    #     if a[0] != b[0] and (a[1] + b[1]) / 2 >= np.interp(
+    #         (a[0] + b[0]) / 2,
+    #         pts[np.argsort(pts[:, 0]), 0],
+    #         pts[np.argsort(pts[:, 0]), 1],
+    #     ):
+    #         upper.extend([a, b])
 
-# envelope = pd.DataFrame(np.unique(upper, axis=0), columns=["int", "distance"])
-# envelope.to_csv("envelope.csv", index=False)
+    # envelope = pd.DataFrame(np.unique(upper, axis=0), columns=["int", "distance"])
+    # envelope.to_csv("envelope.csv", index=False)
+
+def calc_of_size(size):
+    sequences = {}
+    for start in range(1, 8192):
+        start = project_above_p2(start)
+        projected = start
+        seq_length = 0
+        while projected > 1 and ((2 ** size) * projected) % 3 == 1:
+            prev_projected = ((2 ** size) * projected -1) // 3
+            
+            projected = prev_projected
+            seq_length += 1
+        if seq_length >= 1:
+            sequences[projected] = seq_length
+
+    sequences_df = pd.DataFrame(list(sequences.items()), columns=["start", "length"])
+    sequences_df.to_csv(f"sequences_{size}.csv", index=False)
+
+
+def calc_below_size(size):
+    sequences = {}
+    for start in range(1, 2 ** 18):
+        start = project_above_p2(start)
+        projected = start
+        seq_length = 0
+        while projected > 1:
+            j = 0
+            matched = False
+            for k in range(1, size):
+                if ((2 ** k) * projected) % 3 == 1:
+                    j = k
+                    matched = True
+                    break
+            if not matched:
+                break
+            projected = project_above_p2(((2 ** j) * projected - 1) // 3)
+            seq_length += 1
+        if seq_length >= 1:
+            sequences[projected] = seq_length
+    sequences_df = pd.DataFrame(list(sequences.items()), columns=["start", "length"])
+    sequences_df = sequences_df.sort_values(by="start", ascending=False)
+    sequences_df.to_csv(f"sequences_below_{size}.csv", index=False)
+
+calc_below_size(3)
+
+# interests = [1665, 495, 1959, 3567, 3665, 5865, 2921, 6639, 7839,2217, 6171]
+
+# for interest in interests:
+#     do_collatz(interest)
+
+# for i in range(1, 10000):
+#     do_collatz(i)
+
+# reverse_collatz(1, 3, 4)
+
+# graph()
