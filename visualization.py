@@ -1,13 +1,22 @@
+import sys
+
 import numpy as np
-from vispy import scene, app
-from vispy.color import ColorArray, get_colormap
+from PyQt6.QtCore import QTimer
+from PyQt6.QtWidgets import (
+    QApplication,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
+)
+from vispy import app, scene
+from vispy.color import Color, ColorArray, get_colormap
 from vispy.scene.visuals import Rectangle
-from vispy.color import Color
+
 from monzo import Monzo, color_sequence
 from utils import sigmoid
-import sys
-from PyQt6.QtCore import QTimer
-from PyQt6.QtWidgets import QApplication, QLabel, QPushButton, QHBoxLayout, QVBoxLayout, QWidget, QSpinBox
 
 app.use_app("pyqt6")
 class TrackpadCamera(scene.PanZoomCamera):

@@ -1,7 +1,10 @@
-from monzo import PRIMES, Monzo, target_max_int
-import numpy as np
 import random
+
 import mpmath as mp
+import numpy as np
+
+from monzo import PRIMES, Monzo, target_max_int
+
 
 class Complex:
     def __init__(self, real: mp.mpf, imaginary: mp.mpf):
@@ -194,9 +197,9 @@ def find_factor(n: int):
     ec = generate_random_elliptic_curve(n)
     # add until we find a factor
     P = (ec[0], ec[1])
-    m = lambda point: 3 * (point[0] ** 2) - ec[3] / (2 * point[1])  # noqa: E731
+    m = lambda point: 3 * (point[0] ** 2) - ec[3] / (2 * point[1]) 
 
-    m_prime = lambda p0, k: [(k**2) - (2 * p0[0]), k * (p0[0] - k) - p0[1]]  # noqa: E731
+    m_prime = lambda p0, k: [(k**2) - (2 * p0[0]), k * (p0[0] - k) - p0[1]]  
 
     _1p = m(P)
     _2p = m_prime(P, _1p)
@@ -214,7 +217,7 @@ def modular_curve_to_elliptic_curve(n: int):
 
 def get_dual_prime_group(prime_index: int):
     p = PRIMES[prime_index]
-    return [lambda a: (a * i) % p for i in range(p)]
+    return [lambda a: [(a * i) % p for i in range(p)]]
 
 def to_dirichlet_character(q: int, character: lambda a: int):
     return lambda n: character(n) if Monzo.get(n) * Monzo.get(q) == 0 else 0
@@ -232,7 +235,7 @@ def riemann_zeta(s: Complex):
 
         p -= N
 
-        sup_err_norm = mp.power(mp.e, -0.1 * t)  # for |t| > 100  # noqa: F841
+        sup_err_norm = mp.power(mp.e, -0.1 * t)  # for |t| > 100  
 
         Z = Complex(0, 0)
 
@@ -331,7 +334,7 @@ def willans(n: int):
     for i in range(1, 2**n + 1):
         acc = 0
         for j in range(1, i + 1):
-            acc += mp.floor((mp.cos(mp.pi * (mp.factorial(j - 1) + 1) / j) ** 2))
+            acc += mp.floor(mp.cos(mp.pi * (mp.factorial(j - 1) + 1) / j) ** 2)
         k += mp.floor((n / acc) ** (1 / n))
 
     return k

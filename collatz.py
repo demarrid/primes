@@ -1,13 +1,15 @@
-from vispy.color import ColorArray
-from monzo import Monzo, color_sequence
-import networkx as nx
-from visualization import draw_collatz_filter, draw_collatz_graph
-import numpy as np
-from vispy import app
 import time
-from clanker_utils import expand_doublings
-from utils import pos_mod_coords_to_string
+
+import networkx as nx
+import numpy as np
 import pandas as pd
+from vispy import app
+from vispy.color import ColorArray
+
+from clanker_utils import expand_doublings
+from monzo import Monzo, color_sequence
+from utils import pos_mod_coords_to_string
+from visualization import draw_collatz_filter, draw_collatz_graph
 
 G = nx.DiGraph()
 
@@ -110,7 +112,7 @@ def predecessors_of(m: int, count: int):
             else:
                 source_nodes.append(m)
             return to_return
-        for j in range(0, count + 1):
+        for j in range(count + 1):
             new_2_index = 2 * (j + 1) + k - 1
             value_with_new_2_index = m * (2**new_2_index)
             z = (value_with_new_2_index - 1) // 3
@@ -151,10 +153,7 @@ def get_monzo_desc(monzo: Monzo):
     return f"‖m‖²: {monzo.square_norm()}\n|m_P|: {len(monzo)}\nm_P(+): {pos_mod_coords_to_string(monzo)}\nm_P(-): {mod_coords_str}\nm:{coords_str}\nm_Z: {monzo.to_int()}"
 
 def reverse_collatz(sink: int, width: int, depth: int):
-    if show_odd_nodes and sink % 3 == 0:
-        source_nodes.append(sink)
-        do_collatz(sink)
-    elif not show_odd_nodes and sink % 3 != 1:
+    if show_odd_nodes and sink % 3 == 0 or not show_odd_nodes and sink % 3 != 1:
         source_nodes.append(sink)
         do_collatz(sink)
     elif depth > 1:

@@ -1,11 +1,13 @@
-from fractions import Fraction
-import math
 import glob
+import math
+from fractions import Fraction
 
 target_max_int = 100_000
 max_partition_len = 25
 
-stored_primes = [int(k) for k in open("primes.txt","r").read().replace("\n", ",").split(",")]
+stored_primes = [
+    int(k) for k in open("primes.txt", "r").read().replace("\n", ",").split(",")
+]
 
 if stored_primes[-1] < target_max_int:
     stored_primes = []
@@ -20,11 +22,32 @@ if stored_primes[-1] < target_max_int:
 PRIMES = [int(p) for p in stored_primes if p <= target_max_int]
 
 monzo_cache = {}
-color_sequence = ["#83ECF2", "#5FDEB6", "#E3B756", "#3B4AD9", "#22BF4B", "#8117BF", "#BF1773", "#85780B", "#12662F", "#6E0C2F", "#6E0C2F"]
+color_sequence = [
+    "#83ECF2",
+    "#5FDEB6",
+    "#E3B756",
+    "#3B4AD9",
+    "#22BF4B",
+    "#8117BF",
+    "#BF1773",
+    "#85780B",
+    "#12662F",
+    "#6E0C2F",
+    "#6E0C2F",
+]
+
 
 class Monzo:
-    __slots__ = ("e", "c", "self_int", "self_norm", "self_square_norm",
-             "self_fraction", "self_len", "self_color")
+    __slots__ = (
+        "c",
+        "e",
+        "self_color",
+        "self_fraction",
+        "self_int",
+        "self_len",
+        "self_norm",
+        "self_square_norm",
+    )
 
     def __init__(self, exponents, int_val=None):
         self.e = list(exponents)
@@ -46,9 +69,8 @@ class Monzo:
         a_ext = list(self.e) + [0] * (maxlen - len(self.e))
         b_ext = list(other.e) + [0] * (maxlen - len(other.e))
         return Monzo(a - b for a, b in zip(a_ext, b_ext))
-   
 
-    def __mul__(self, k): 
+    def __mul__(self, k):
         return Monzo(k * a for a in self.e)
 
     def __truediv__(self, k):
@@ -61,13 +83,13 @@ class Monzo:
     __floordiv__ = __truediv__
     __rfloordiv__ = __rtruediv__
 
-    def __matmul__(self, val): 
+    def __matmul__(self, val):
         return sum(a * b for a, b in zip(self.e, val))
 
     def square_norm(self):
         if self.self_square_norm is not None:
             return self.self_square_norm
-        self.self_square_norm = sum(a ** 2 for a in self.e)
+        self.self_square_norm = sum(a**2 for a in self.e)
         return self.self_square_norm
 
     def norm(self):
@@ -80,7 +102,7 @@ class Monzo:
         return isinstance(other, Monzo) and self.e == other.e
 
     def __repr__(self):
-        return f"Monzo({self.e[:self.__len__()]})"
+        return f"Monzo({self.e[: self.__len__()]})"
 
     def to_fraction(self):
         if self.self_fraction is not None:
@@ -92,10 +114,10 @@ class Monzo:
         return self.self_fraction
 
     def get_coordinates(self):
-        if len(self) > max_partition_len *2:
-            return self.e[:max_partition_len] + self.e[len(self) - max_partition_len:]
+        if len(self) > max_partition_len * 2:
+            return self.e[:max_partition_len] + self.e[len(self) - max_partition_len :]
         else:
-            return self.e[:self.__len__()]
+            return self.e[: self.__len__()]
 
     def get_modular_coordinates(self):
         if self.c is not None:
@@ -103,18 +125,31 @@ class Monzo:
         if len(self) == 0:
             self.c = [-1]
         else:
-            if len(self) > max_partition_len *2:
-                self.c = [(self.to_int() % PRIMES[i]) - PRIMES[i] for i in range(max_partition_len)] + [(self.to_int() % PRIMES[i]) - PRIMES[i] for i in range(len(self) - max_partition_len, len(self))]
+            if len(self) > max_partition_len * 2:
+                self.c = [
+                    (self.to_int() % PRIMES[i]) - PRIMES[i]
+                    for i in range(max_partition_len)
+                ] + [
+                    (self.to_int() % PRIMES[i]) - PRIMES[i]
+                    for i in range(len(self) - max_partition_len, len(self))
+                ]
             else:
-                self.c = [(self.to_int() % PRIMES[i]) - PRIMES[i] for i in range(len(self))]
+                self.c = [
+                    (self.to_int() % PRIMES[i]) - PRIMES[i] for i in range(len(self))
+                ]
         return self.c
 
     def get_positive_modular_coordinates(self):
         if len(self) == 0:
             return [-1]
         else:
-            if len(self) > max_partition_len *2:
-                return [(self.to_int() % PRIMES[i])  for i in range(max_partition_len)] + [(self.to_int() % PRIMES[i]) for i in range(len(self) - max_partition_len, len(self))]
+            if len(self) > max_partition_len * 2:
+                return [
+                    (self.to_int() % PRIMES[i]) for i in range(max_partition_len)
+                ] + [
+                    (self.to_int() % PRIMES[i])
+                    for i in range(len(self) - max_partition_len, len(self))
+                ]
             else:
                 return [(self.to_int() % PRIMES[i]) for i in range(len(self))]
 
@@ -131,7 +166,7 @@ class Monzo:
         mods = self.get_positive_modular_coordinates().copy()
         for i in range(len(self), len(PRIMES)):
             p = PRIMES[i]
-            mods.append((self.to_int() % p)  )
+            mods.append(self.to_int() % p)
             if p > self.to_int() or len(mods) > max_partition_len * 3:
                 break
         return mods
@@ -142,26 +177,32 @@ class Monzo:
     def succeed(self, k, to_prime=False):
         self.to_int()
         modular_coordinates = self.get_modular_coordinates()
-        arr = [(1 if mod_coord + (k % PRIMES[i]) == 0 else 0) for i, mod_coord in enumerate(modular_coordinates)]
+        arr = [
+            (1 if mod_coord + (k % PRIMES[i]) == 0 else 0)
+            for i, mod_coord in enumerate(modular_coordinates)
+        ]
         val = self.to_int() + k
         if not any(arr):
             new_array = [0] * (len(arr) + 1)
             new_array[-1] = 1
             arr = new_array
-            if (val > PRIMES[-1]):
+            if val > PRIMES[-1]:
                 PRIMES.append(val)
-        toReturn = self.from_prime_of_index(len(PRIMES) - 1) if to_prime else self.from_int(val)
+        toReturn = (
+            self.from_prime_of_index(len(PRIMES) - 1)
+            if to_prime
+            else self.from_int(val)
+        )
         toReturn.self_int = val
         toReturn.c = len(arr) * [0]
 
         for i in range(len(toReturn.c)):
             if i == len(modular_coordinates):
-                toReturn.c[i] = - PRIMES[i]
+                toReturn.c[i] = -PRIMES[i]
             else:
                 toReturn.c[i] = ((modular_coordinates[i] + k) % PRIMES[i]) - PRIMES[i]
-        
-        return toReturn
 
+        return toReturn
 
     def prime(self):
         return self.norm() == 1
@@ -173,10 +214,13 @@ class Monzo:
                     return self.from_prime_of_index(i)
 
         modular_coordinates = self.get_modular_coordinates()
-    
+
         increase = 1
-        for candidate in range(1-modular_coordinates[0], PRIMES[len(self)-1], 2):
-            if all(modular_coordinates[index] + (candidate % PRIMES[index]) != 0 for index in range(len(modular_coordinates))):
+        for candidate in range(1 - modular_coordinates[0], PRIMES[len(self) - 1], 2):
+            if all(
+                modular_coordinates[index] + (candidate % PRIMES[index]) != 0
+                for index in range(len(modular_coordinates))
+            ):
                 increase = candidate
                 break
 
@@ -189,12 +233,12 @@ class Monzo:
             self.self_int = 0
             return self.self_int
 
-        self.self_int = math.prod(p ** e for p, e in zip(PRIMES, self.e))
+        self.self_int = math.prod(p**e for p, e in zip(PRIMES, self.e))
         return self.self_int
 
     def get_index(self, i):
         return self.e[i] if i < len(self.e) else 0
-    
+
     def with_index(self, i, value):
         new_e = self.e.copy()
         new_e[i] = value
@@ -244,7 +288,14 @@ class Monzo:
 
     @classmethod
     def get_biggest_loaded_prime(cls):
-        return PRIMES[-1]
+        return PRIMES[-1], len(PRIMES) - 1
+
+    @classmethod
+    def first_prime_larger_than(cls, n):
+        for i, p in enumerate(PRIMES):
+            if p > n:
+                return p, i
+        return cls.get_biggest_loaded_prime()
 
     @classmethod
     def get_prime_index(cls, p):
@@ -272,28 +323,38 @@ class Monzo:
             target = PRIMES[len(coordinates) - 1]
             for i in range(len(coordinates)):
                 int_val = coefficients[i] * PRIMES[i] + (coordinates[i] % PRIMES[i])
-                while int_val < target or int_val % PRIMES[i] != (coordinates[i] % PRIMES[i]):
+                while int_val < target or int_val % PRIMES[i] != (
+                    coordinates[i] % PRIMES[i]
+                ):
                     coefficients[i] += 1
                     int_val = coefficients[i] * PRIMES[i] + (coordinates[i] % PRIMES[i])
-            
+
             solved = True
-            target = max([coefficients[i] * PRIMES[i] + (coordinates[i] % PRIMES[i]) for i in range(len(coordinates))])
+            target = max(
+                [
+                    coefficients[i] * PRIMES[i] + (coordinates[i] % PRIMES[i])
+                    for i in range(len(coordinates))
+                ]
+            )
             for k in range(len(coordinates)):
                 if coefficients[k] * PRIMES[k] + (coordinates[k] % PRIMES[k]) != target:
                     coefficients[k] += 1
                     solved = False
                     break
-            
+
         return cls.from_int(target)
 
     @classmethod
     def get_nth_prime(cls, n):
         k = n - 1
         while k > len(PRIMES) - 1:
+            print(
+                f"Getting {n}th prime, {k} is the index. {len(PRIMES) - 1} is the last loaded prime index."
+            )
             m = cls.get(PRIMES[-1])
             m = m.next_prime()
             k -= 1
-        return PRIMES[n-1]
+        return PRIMES[n - 1]
 
     @classmethod
     def get_prime_of_index(cls, index):

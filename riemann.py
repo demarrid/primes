@@ -1,6 +1,9 @@
 import time
+
 import mpmath as mp
+
 from utils import riemann_zeta, some_riemann_zeros
+
 mp.dps = 100
 
 start_time = time.time()
