@@ -4,3 +4,4 @@ primelists/*
 graphs/*
 .gitignore
 .cursor/*
+.sieve_cache/*

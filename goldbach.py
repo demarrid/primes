@@ -7,6 +7,7 @@ import pandas as pd
 from vispy import app
 from vispy.color import get_colormap
 
+from clanker_utils import GoldbachCounts
 from monzo import PRIMES, Monzo
 from utils import pos_mod_coords_to_string
 from visualization import draw_goldbach_graph
@@ -126,85 +127,11 @@ def draw_graph():
     app.run()
 
 
-target = 2500
-# 3 is the first odd prime
-target, prime_index = Monzo.first_prime_larger_than(target * 3)
-print(f"Target: {target}, Prime index: {prime_index}")
+bot = 451_220_100
+top = 451_220_200
 
-def pi(x):
-    return mpmath.primepi(x)
+counts = GoldbachCounts(top)
 
-
-def prods_of_odds_less_than_x(x):
-    return np.ceil(np.floor(x) / 2 - pi(x))
-
-
-def odd_prime_sum_candidates(x):
-    return max(0, pi(2 * np.floor(x / 2)) - 1)
-
-
-def duds_to_x(x):
-    s = 0
-    for i in range(1, prime_index):
-        p1 = Monzo.get_prime_of_index(i)
-        if p1 * 3 > x:
-            break
-        for j in range(i, prime_index):
-            p2 = Monzo.get_prime_of_index(j)
-            prod = p1 * p2
-            if prod > x:
-                break
-            s += max(0, prods_of_odds_less_than_x(x - prod) - (j))
-    return s
-
-
-def new_duds_for(x):
-    x = 2 * np.floor(x / 2)
-    return duds_to_x(x) - duds_to_x(x - 1)
-
-
-def relevant_prods_up_to(x):
-    return max(0, np.ceil(0.5 * np.floor(x - 3) - pi(x - 3)))
-
-
-def primes_prevented(x):
-    x = np.floor(x / 2)
-    return relevant_prods_up_to(2 * x) - relevant_prods_up_to(x) - new_duds_for(2 * x)
-
-
-x = 64
-
-z = int(2 * np.floor(x / 2))
-
-print(
-    f"How many odd prime sum candidates are there up to {z}? {odd_prime_sum_candidates(z)}"
-)
-print(f"How many products of odds are there up to {z}? {prods_of_odds_less_than_x(z)}")
-print(f"How many duds are there up to {z}? {duds_to_x(z)}")
-print(f"How many new duds are there for {z}? {new_duds_for(z)}")
-print(f"How many relevant products are there up to {z}? {relevant_prods_up_to(z)}")
-print(f"How many primes are prevented from summing to {z}? {primes_prevented(z)}")
-
-df = pd.DataFrame()
-cols = [
-    "z",
-    "odd_prime_sum_candidates",
-    "duds_to_x",
-    "new_duds_for",
-    "relevant_prods_up_to",
-    "primes_prevented",
-]
-
-for z in range(4, target, 2):
-    df = pd.concat([df, pd.DataFrame([
-        {
-            "z": z,
-            "odd_prime_sum_candidates": odd_prime_sum_candidates(z),
-            "duds_to_x": duds_to_x(z),
-            "new_duds_for": new_duds_for(z),
-            "relevant_prods_up_to": relevant_prods_up_to(z),
-            "primes_prevented": primes_prevented(z),
-        }
-    ])], ignore_index=True)
-
+df = counts.build_table(bot, top)
 df.to_csv("goldbach_data.csv", index=False)
+print(df.to_string(index=False))
