@@ -2,7 +2,7 @@ import glob
 import math
 from fractions import Fraction
 
-target_max_int = 480_000_000
+target_max_int = 480_00
 max_partition_len = 25
 
 stored_primes = [
