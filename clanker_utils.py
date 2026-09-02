@@ -1,5 +1,6 @@
 import os
 import importlib
+import math
 from functools import lru_cache
 import numpy as np
 import pandas as pd
@@ -183,6 +184,62 @@ def _primes_upto(sieve, cap):
     odd = np.flatnonzero(sieve[: max(cap - 1, 1) // 2 + 1]).astype(np.int64)
     return np.concatenate(([2], 2 * odd + 1))
 
+_SIEVE_GRANULARITY = 1 << 20
+_MAX_CACHED_LIMIT = 1 << 27  # a 64 MB cache file; past this, sieve in memory
+_MAX_SIEVE_BYTES = 32 << 30  # only to catch the hopeless ask, not to police big ones
+
+def primes_upto(limit, cache_dir=_SIEVE_CACHE, max_bytes=_MAX_SIEVE_BYTES):
+    """Every prime <= ``limit`` as an int64 array.
+
+    Sieve limits are rounded up so that nearby requests share one cache file;
+    a sieve built past ``limit`` still answers correctly below it. Very large
+    sieves skip the cache rather than leave hundreds of megabytes on disk, and
+    a hopeless one is refused up front instead of asking numpy for more memory
+    than the machine has.
+    """
+    limit = int(limit)
+    if limit < 2:
+        return np.empty(0, dtype=np.int64)
+    padded = -(-limit // _SIEVE_GRANULARITY) * _SIEVE_GRANULARITY
+    needed = padded // 2 + 1
+    if needed > max_bytes:
+        raise MemoryError(
+            "sieving to {:.3g} needs {:.1f} GiB for the flags alone; raise "
+            "max_bytes if the machine really has it".format(limit, needed / (1 << 30))
+        )
+    if padded > _MAX_CACHED_LIMIT:
+        cache_dir = None
+    return _primes_upto(_load_odd_sieve(padded, cache_dir), limit)
+
+def first_primes(count, cache_dir=_SIEVE_CACHE):
+    """The first ``count`` primes, as Python ints."""
+    count = int(count)
+    if count <= 0:
+        return []
+    # p_k < k * (ln k + ln ln k) for k >= 6; the loop covers the small cases
+    limit = max(15, int(count * (math.log(count) + math.log(math.log(count) + 1))))
+    while True:
+        primes = primes_upto(limit, cache_dir)
+        if primes.size >= count:
+            return [int(p) for p in primes[:count]]
+        limit *= 2
+
+def primorials(count, cache_dir=_SIEVE_CACHE):
+    """``primorials(k)[i]`` is the product of the first ``i + 1`` primes."""
+    out = []
+    prod = 1
+    for p in first_primes(count, cache_dir):
+        prod *= p
+        out.append(prod)
+    return out
+
+def primes_between(a, b, cache_dir=_SIEVE_CACHE):
+    """Primes p with ``a <= p <= b``."""
+    if b < 2 or b < a:
+        return np.empty(0, dtype=np.int64)
+    primes = primes_upto(b, cache_dir)
+    return primes[int(np.searchsorted(primes, a, side="left")) :]
+
 class GoldbachCounts:
     """Prime counts and Goldbach "dud" counts backed by one cached sieve.
 
@@ -298,3 +355,182 @@ class GoldbachCounts:
 def goldbach_counts(limit, max_prime_index=None, cache_dir=_SIEVE_CACHE):
     """Cached GoldbachCounts so repeated calls reuse the sieve and tables."""
     return GoldbachCounts(limit, max_prime_index=max_prime_index, cache_dir=cache_dir)
+
+_PI_MAX_DPS = 1000  # a value this stubborn is a near-integer nobody will meet
+_PI_SPARE_DIGITS = 30  # fractional digits to keep once the integer part is paid for
+
+def pi_floor(x):
+    """floor(x / ln x), the prime-count estimate, computed exactly.
+
+    The starting precision covers the integer part of the quotient plus 30
+    fractional digits, so the very first evaluation resolves the floor for any
+    ordinary value. Precision then climbs only for values that sit within
+    10**-20 of an integer, and the tolerance test, not the digit count, is
+    what allows an answer out.
+    """
+    import mpmath
+
+    x = float(x)
+    dps = _PI_SPARE_DIGITS + max(0, int(math.log10(x)) if x > 1 else 0)
+    while True:
+        with mpmath.workdps(dps):
+            value = mpmath.mpf(x)
+            quotient = value / mpmath.ln(value)
+            whole = mpmath.floor(quotient)
+            frac = quotient - whole
+            tol = abs(quotient) * mpmath.mpf(10) ** (10 - dps)
+            if tol < frac < 1 - tol or dps >= _PI_MAX_DPS:
+                return int(whole)
+        dps = min(dps * 4, _PI_MAX_DPS)
+
+def pi_floor_batch(xs, guard_rel=1e-13, guard_abs=1e-9):
+    """floor(x / ln x) for many x at once, still exact.
+
+    float64 settles almost every value: x itself is exact and log then divide
+    cost a few ulps, so the floor is only in doubt when the quotient sits
+    right next to an integer. Those go back through ``pi_floor``. The default
+    band is a hundred times a generous bound on that float error, which still
+    leaves only a handful of values per hundred thousand on the slow path.
+
+    Since the band is relative, it widens past 1 once the quotient nears
+    2**53 and the fraction stops meaning anything; those values all go to
+    mpmath, which is the only way to floor them anyway.
+    """
+    xs = np.asarray(xs, dtype=np.float64)
+    if xs.size == 0:
+        return np.zeros(0, dtype=np.int64)
+    if np.any(xs <= 1.0):
+        raise ValueError("x / ln(x) is only meaningful for x > 1")
+
+    quotient = xs / np.log(xs)
+    if quotient.max() >= 2.0**62:
+        raise OverflowError(
+            "x / ln(x) reaches {:.3g}, past what an int64 count can hold; "
+            "this z is too large for the array path".format(quotient.max())
+        )
+    whole = np.floor(quotient)
+    frac = quotient - whole
+    guard = guard_rel * quotient + guard_abs
+    unsure = (frac < guard) | (frac > 1.0 - guard)
+
+    out = np.zeros(xs.shape, dtype=np.int64)
+    settled = ~unsure
+    out[settled] = whole[settled].astype(np.int64)
+    for i in np.flatnonzero(unsure):
+        out[i] = pi_floor(float(xs[i]))
+    return out
+
+_SUM_CHUNK = 1 << 26  # both half-sums then stay four orders below the int64 roof
+
+def exact_sum(counts):
+    """Add up a non-negative int64 array without int64 wrapping the total.
+
+    Each element fits, but their sum need not: past s = 16 the twins total
+    runs to 10**20. Splitting every value into two 32 bit halves keeps both
+    running totals small enough to add in int64, and the halves are recombined
+    as Python ints at the end.
+    """
+    counts = np.asarray(counts)
+    total = 0
+    for start in range(0, counts.size, _SUM_CHUNK):
+        block = counts[start : start + _SUM_CHUNK]
+        total += (int((block >> 32).sum()) << 32) + int((block & 0xFFFFFFFF).sum())
+    return total
+
+def _iroot(a, k):
+    """floor(a ** (1 / k)) for a >= 0, by integer Newton so nothing rounds."""
+    if k == 1 or a < 2:
+        return a
+    r = 1 << -(-a.bit_length() // k)
+    while True:
+        step = ((k - 1) * r + a // r ** (k - 1)) // k
+        if step >= r:
+            return r
+        r = step
+
+def cofactor_limit(z, n):
+    """The largest c worth considering: ``z ** ((n - 1) / n)``, floored.
+
+    A c above this leaves less than ``z ** (1 / n)`` for the final prime, so
+    it cannot be the small end of an n-almost-prime. At n == 2 this is the
+    ``sqrt(z)`` cutoff the original code used.
+    """
+    return _iroot(int(z) ** (n - 1), n)
+
+def _cofactor_blocks(limit, k, min_index, primes, prefix=1):
+    """Blocks of the k-almost-primes <= limit drawn from ``primes[min_index:]``.
+
+    Factors are picked in non-decreasing index order, so each product turns up
+    exactly once however many ways it could be assembled. A block shares one
+    prefix and varies only the last factor, which keeps that innermost step a
+    single array multiply.
+    """
+    if k == 1:
+        hi = int(np.searchsorted(primes, limit // prefix, side="right"))
+        if hi > min_index:
+            yield prefix * primes[min_index:hi]
+        return
+    for j in range(min_index, primes.size):
+        p = int(primes[j])
+        if prefix * p**k > limit:
+            break
+        yield from _cofactor_blocks(limit, k - 1, j, primes, prefix * p)
+
+def cofactor_blocks(z, s, n=2, cache_dir=_SIEVE_CACHE):
+    """The c values twins.py sums over, a block at a time.
+
+    c runs over the distinct (n-1)-almost-primes up to ``cofactor_limit`` whose
+    prime factors are all at least p_s. For n == 2 that is exactly the primes
+    from p_s to sqrt(z) that the original built from the loaded prime list.
+    """
+    if n < 2:
+        raise ValueError("n must be at least 2")
+    limit = cofactor_limit(z, n)
+    primes = primes_upto(limit, cache_dir)
+    return _cofactor_blocks(limit, n - 1, max(int(s) - 1, 0), primes)
+
+def cofactor_candidates(z, s, n=2, cache_dir=_SIEVE_CACHE):
+    """Every c value in one array; see ``cofactor_blocks`` for what they are.
+
+    Past n == 2 there can be hundreds of millions of them, so prefer
+    ``twins_row``, which never holds more than one block.
+    """
+    blocks = [b for b in cofactor_blocks(z, s, n, cache_dir) if b.size]
+    if not blocks:
+        return np.empty(0, dtype=np.int64)
+    return blocks[0] if len(blocks) == 1 else np.concatenate(blocks)
+
+_EXACT_DOUBLE = 1 << 53
+
+def _quotients(z, cs):
+    """``z / c`` as float64, matching Python's int division bit for bit."""
+    cs = np.asarray(cs, dtype=np.int64)
+    if int(z) <= _EXACT_DOUBLE and cs.size and int(cs.max()) <= _EXACT_DOUBLE:
+        # both sides are exact doubles here, so one IEEE divide rounds the true
+        # quotient exactly the way int.__truediv__ would
+        return np.float64(z) / cs.astype(np.float64)
+    return np.fromiter((z / int(c) for c in cs), dtype=np.float64, count=cs.size)
+
+def twins_row(z, s, n=2, cs=None, cache_dir=_SIEVE_CACHE):
+    """``(how many c values, actual_count)`` for one row of twins.py.
+
+    actual_count is the sum of max(0, pi(z / c) - s) over those c. The c values
+    are consumed one block at a time, so a row with a hundred million
+    cofactors still only needs memory for the sieve.
+    """
+    blocks = [np.asarray(cs)] if cs is not None else cofactor_blocks(z, s, n, cache_dir)
+    size = 0
+    total = 0
+    for block in blocks:
+        if block.size == 0:
+            continue
+        size += int(block.size)
+        counts = pi_floor_batch(_quotients(z, block))
+        counts -= int(s)
+        np.maximum(counts, 0, out=counts)
+        total += exact_sum(counts)
+    return size, total
+
+def twins_actual_count(z, s, n=2, cs=None, cache_dir=_SIEVE_CACHE):
+    """twins.py's ``actual_count`` for one s: sum of max(0, pi(z / c) - s)."""
+    return twins_row(z, s, n, cs, cache_dir)[1]
