@@ -5,3 +5,4 @@ graphs/*
 .gitignore
 .cursor/*
 .sieve_cache/*
+.DS_Store

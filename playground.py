@@ -2,10 +2,10 @@ from monzo import Monzo, target_max_int
 import pandas as pd
 from monzo import PRIMES
 import visualization as viz
-from utils import factor, make_spf, build_grid_records, load_or_build, build_modular_coord_records
 import numpy as np
 from vispy import app
-
+from clanker_utils import primorials
+from clanker_utils import make_spf, factor
 N = target_max_int
 visualize = False
 if visualize:
@@ -76,3 +76,40 @@ if visualize:
 # non-generous primes: p, the least positive primiive root is not a primitive root of p^2
 # safe-prime: p and (p-1)/2 are both prime
 # super-prime: p is the kth prime, k is prime
+
+n = 6
+p = n ** 2 + 1
+
+def procedure(p):
+    S = p
+    p_l = [Monzo.get_prime_of_index(i) for i in range(0, Monzo.get_prime_index(p))]
+    passed = False
+    while not passed:
+        passed = True
+        for z_0 in p_l:
+            if S % z_0 == z_0 - 1:
+                passed = False
+                S *= (z_0 ** 2)
+                print(f"multiplied by {z_0 ** 2}")
+                p_l.remove(z_0)
+                break
+
+    return S + 1
+
+for i in range(1, 1):
+    p = procedure(p)
+    print(f"S: {p}")
+
+
+k = 7
+primorial_map = primorials(k)
+spf = make_spf(N)
+
+for i in range(1, k):
+    val = primorial_map[i] ** 2 + 1
+    exps = list(factor(val, spf))           
+    norm = np.sqrt(sum(e*e for _, e in exps)) or 1
+    val = 1.0
+    for p, e in exps:
+        val *= p ** (e / norm)
+    print(f"{val}: {norm}")
