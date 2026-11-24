@@ -1,8 +1,9 @@
 import glob
 import math
 from fractions import Fraction
+from clanker_utils import format_factorization
 
-target_max_int = 80_000_000_0
+target_max_int = 80_000_00_0
 max_partition_len = 25
 
 stored_primes = [
@@ -265,6 +266,11 @@ class Monzo:
 
         self.self_len = 0
         return self.self_len
+
+    def factorization(self):
+        return format_factorization(
+        (p, e) for p, e in zip(PRIMES, self.e[: len(self)]) if e
+    )
 
     @classmethod
     def from_int(cls, n):

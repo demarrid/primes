@@ -91,8 +91,15 @@ def load_or_build(path, build_fn, keep=True):
     return df if keep else None  # discard from memory when not needed
 
 def make_spf(N):
-    spf = np.arange(N + 1)
-    for i in range(2, int(N**0.5) + 1):
+    """Smallest prime factor of every n <= N.
+
+    Costs 4 bytes per entry while N fits in uint32 (8 past that), so this is
+    only the right tool for factoring many numbers below N; for a few large
+    ones use ``factor_big``.
+    """
+    dtype = np.uint32 if N <= np.iinfo(np.uint32).max else np.int64
+    spf = np.arange(N + 1, dtype=dtype)
+    for i in range(2, math.isqrt(N) + 1):
         if spf[i] == i:
             spf[i * i :: i] = np.minimum(spf[i * i :: i], i)
     return spf
@@ -106,6 +113,128 @@ def factor(m, spf):
             m //= p
             e += 1
         yield p, e
+
+_TRIAL_LIMIT = 1000
+_MR_BASES = (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41)
+_MR_DETERMINISTIC = 3317044064679887385961981  # _MR_BASES are exact below this
+_BRENT_BATCH = 128  # steps between gcds in Pollard-Brent
+_BRENT_MAX_R = 1 << 16  # ~0.3 s of rho, enough for factors up to ~1e10; then ECM
+_BRENT_TRIES = 3  # polynomials to try before giving up on rho
+
+@lru_cache(maxsize=1)
+def _trial_primes():
+    return [int(p) for p in primes_upto(_TRIAL_LIMIT, cache_dir=None)]
+
+def is_prime(n):
+    """Miller-Rabin, deterministic below 3.3e24; sympy's BPSW above that."""
+    n = int(n)
+    if n < 2:
+        return False
+    for p in _MR_BASES:
+        if n % p == 0:
+            return n == p
+    if n >= _MR_DETERMINISTIC:
+        from sympy import isprime
+        return isprime(n)
+    d, s = n - 1, 0
+    while d % 2 == 0:
+        d //= 2
+        s += 1
+    for a in _MR_BASES:
+        x = pow(a, d, n)
+        if x == 1 or x == n - 1:
+            continue
+        for _ in range(s - 1):
+            x = x * x % n
+            if x == n - 1:
+                break
+        else:
+            return False
+    return True
+
+def _pollard_brent(n, max_r=_BRENT_MAX_R, tries=_BRENT_TRIES):
+    """A nontrivial factor of an odd composite n, or None if rho runs out.
+
+    Rho needs about sqrt(p) steps to find a factor p, so it stalls once every
+    factor is large; the caller is expected to fall back to ECM then.
+    """
+    for c in range(1, min(n, tries + 1)):
+        y, r, q, g = 2, 1, 1, 1
+        x = ys = y
+        while g == 1:
+            if r > max_r:
+                return None
+            x = y
+            for _ in range(r):
+                y = (y * y + c) % n
+            k = 0
+            while k < r and g == 1:
+                ys = y
+                for _ in range(min(_BRENT_BATCH, r - k)):
+                    y = (y * y + c) % n
+                    q = q * abs(x - y) % n
+                g = math.gcd(q, n)
+                k += _BRENT_BATCH
+            r *= 2
+        if g == n:
+            # the batched product overshot; replay the last batch one step at a time
+            g = 1
+            while g == 1:
+                ys = (ys * ys + c) % n
+                g = math.gcd(abs(x - ys), n)
+        if g != n:
+            return g
+    return None
+
+def factor_big(m, spf=None):
+    """yield (prime, exponent) for any integer m >= 1, smallest prime first.
+
+    Same output as ``factor`` but needs no sieve: trial division by the primes
+    below 1000, then a short Pollard-Brent run on whatever is left. Pieces
+    that rho cannot crack go to sympy's factorint, whose ECM handles factors
+    of 20+ digits (seconds at that size, growing fast past it). When ``spf``
+    is given and m fits in it, the sieve is used instead.
+    """
+    m = int(m)
+    if spf is not None and m < len(spf):
+        yield from factor(m, spf)
+        return
+    counts = {}
+    for p in _trial_primes():
+        if p * p > m:
+            break
+        if m % p == 0:
+            e = 0
+            while m % p == 0:
+                m //= p
+                e += 1
+            counts[p] = e
+    stack = [m] if m > 1 else []
+    while stack:
+        n = stack.pop()
+        if is_prime(n):
+            counts[n] = counts.get(n, 0) + 1
+            continue
+        d = _pollard_brent(n)
+        if d is None:
+            from sympy import factorint
+            for p, e in factorint(n).items():
+                counts[p] = counts.get(p, 0) + e
+            continue
+        stack.extend((d, n // d))
+    for p in sorted(counts):
+        yield p, counts[p]
+
+def format_factorization(pairs):
+    """``'2^3 * 3 * 5^2'`` from (prime, exponent) pairs; ``'1'`` when empty."""
+    return " * ".join(str(p) if e == 1 else f"{p}^{e}" for p, e in pairs if e) or "1"
+
+def factorization_string(n, spf=None):
+    """Prime factorization of an integer n >= 1 as a string, e.g. 360 -> '2^3 * 3^2 * 5'."""
+    n = int(n)
+    if n < 1:
+        raise ValueError("only positive integers have a prime factorization")
+    return format_factorization(factor_big(n, spf))
 
 def build_grid_records(N, spf, prime_index, value_of=lambda n, exps: n):
     """value_of maps (n, its exponent dict) -> the integer to factor for the grid."""

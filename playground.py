@@ -5,7 +5,7 @@ import visualization as viz
 import numpy as np
 from vispy import app
 from clanker_utils import primorials
-from clanker_utils import make_spf, factor
+from clanker_utils import make_spf, factor, factor_big
 N = target_max_int
 visualize = False
 if visualize:
@@ -101,13 +101,15 @@ for i in range(1, 1):
     print(f"S: {p}")
 
 
-k = 7
-primorial_map = primorials(k)
-spf = make_spf(N)
+for i in range(0, 5000,2):
+    z = Monzo.get(i** 2 + 1)
+    print(f"{z.to_int()}: {z.factorization()}")
 
+
+k = 1
+primorial_map = primorials(k)
 for i in range(1, k):
-    val = primorial_map[i] ** 2 + 1
-    exps = list(factor(val, spf))           
+    exps = list(factor_big(primorial_map[i] ** 2 + 1))
     norm = np.sqrt(sum(e*e for _, e in exps)) or 1
     val = 1.0
     for p, e in exps:
