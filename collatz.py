@@ -648,16 +648,16 @@ def calc_below_size(size):
     sequences_df = sequences_df.sort_values(by="start", ascending=False)
     sequences_df.to_csv(f"sequences_below_{size}.csv", index=False)
 
-calc_below_size(3)
+calc_below_size(4)
 
-# interests = [1665, 495, 1959, 3567, 3665, 5865, 2921, 6639, 7839,2217, 6171]
+interests = [1665, 495, 1959, 3567, 3665, 5865, 2921, 6639, 7839,2217, 6171]
 
-# for interest in interests:
-#     do_collatz(interest)
+for interest in interests:
+    do_collatz(interest)
 
-# for i in range(1, 10000):
-#     do_collatz(i)
+for i in range(1, 10000):
+    do_collatz(i)
 
-# reverse_collatz(1, 3, 4)
+reverse_collatz(1, 3, 4)
 
-# graph()
+graph()

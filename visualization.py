@@ -270,7 +270,7 @@ def scatter_view(df, x, y, value_col=None, continuous=False, size=9, title="scat
         px_cache["pts"] = inv.map(pos)[:, :2]
 
     old_on_change = view.camera.on_change
-    view.camera.on_change = lambda: (old_on_change(), refresh_px())
+    view.camera.on_change = lambda: (old_on_change() if old_on_change else None, refresh_px())
 
     canvas.events.resize.connect(lambda e: refresh_px())
     canvas.events.draw.connect(lambda e: refresh_px())
